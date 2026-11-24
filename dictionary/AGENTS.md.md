@@ -1,19 +1,19 @@
 ---
-description: A file in the environment that the harness loads into the context window at session start — the project's standing brief to the agent.
+description: 环境中的一个文件，Harness 会在会话开始时将其加载到上下文窗口中——相当于项目给 Agent 的常备简报。
 ---
 
-A file in the [environment](./Environment.md) that the [harness](./Harness.md) loads into the [context window](./Context%20window.md) at [session](./Session.md) start — the project's standing brief to the [agent](./Agent.md). Cross-harness convention; some harnesses also have their own variant (Claude Code's is CLAUDE.md).
+[环境](./环境（Environment）.md)中的一个文件，[Harness](./Harness（驾驭框架）.md) 会在[会话](./会话（Session）.md)开始时将其加载到[上下文窗口](./上下文窗口（Context%20window）.md)中——相当于项目给 [Agent](./Agent（智能体）.md) 的常备简报。这是一种跨 Harness 的通用约定；部分 Harness 也有自己的变体（例如 Claude Code 的是 CLAUDE.md）。
 
-Because it loads automatically, it's one way to avoid repeating yourself across sessions. The [model](./Model.md) is [stateless](./Stateless.md) — a correction you give in one session is gone in the next, and you end up telling every fresh session that the project uses pnpm, that tests run with a particular flag, that a directory is generated and shouldn't be touched. When you've corrected the agent for the same thing twice, that correction is a candidate line for AGENTS.md.
+由于它会自动加载，这是避免在不同会话中重复交代同一件事的方法之一。[模型](./模型（Model）.md)是[无状态](./无状态（Stateless）.md)的——你在一次会话中给出的纠正，到了下一次会话就会消失，结果你不得不在每次新会话中都告诉它项目用的是 pnpm、测试要加某个特定参数、某个目录是自动生成的不能改动。当你针对同一件事纠正过 Agent 两次时，这条纠正就适合写进 AGENTS.md。
 
-Suitable content is whatever the agent can't derive from the code: build and test commands, conventions the codebase doesn't make obvious, hard constraints ("never edit the generated client"). Short and declarative — it's a brief, not documentation.
+适合放入其中的内容是 Agent 无法从代码里直接推导出来的信息：构建和测试命令、代码库中不够明显的约定、硬性约束（例如“绝不要编辑自动生成的客户端代码”）。写法应当简短且声明式——它是一份简报，而不是完整文档。
 
-The trade-off is that everything in it is always loaded. Instructions accumulate, most of them irrelevant to any given task, and a long AGENTS.md both costs tokens and dilutes itself — the more instructions in context, the less reliably the model follows any one of them.
+代价是其中的所有内容都会被始终加载。指令会越积越多，而其中大部分与当前具体任务无关；冗长的 AGENTS.md 既消耗 Token，又会稀释自身效果——上下文中的指令越多，模型对其中任何一条的遵循可靠度就越低。
 
-_Avoid:_ using AGENTS.md for content that should be [progressively disclosed](./Progressive%20disclosure.md) — anything in it pays a [token](./Token.md) cost every [turn](./Turn.md), in every session, whether or not that session needs it. A style guide can go behind a [skill](./Skill.md) or a [context pointer](./Context%20pointer.md) instead; keep AGENTS.md for the lines that apply everywhere.
+_避免使用：_ 把本应[渐进式披露](./渐进式披露（Progressive%20disclosure）.md)的内容放进 AGENTS.md——放在里面的任何内容都会在每次会话的每一[轮次](./轮次（Turn）.md)中消耗 [Token](./Token（词元）.md)，无论当前会话是否需要它。代码风格指南完全可以放在 [Skill](./Skill（技能）.md) 或[上下文指针](./上下文指针（Context%20pointer）.md)后面；只把全局适用的规则留在 AGENTS.md 中。
 
-_Usage:_
+_用法示例：_
 
-"Why is every session starting with 4k tokens already burned?"
+“为什么每次会话一开始就已经烧掉了 4k Token？”
 
-"Check AGENTS.md — someone pasted the entire style guide in there instead of putting it behind a skill."
+“检查一下 AGENTS.md——肯定有人把整份风格指南直接贴进去了，而没有把它放到 Skill 后面。”
