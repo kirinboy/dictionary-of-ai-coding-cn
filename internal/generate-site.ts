@@ -485,6 +485,20 @@ function buildGraphData(sections: Section[], entries: Entry[]) {
   };
 }
 
+const BRAND_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="logoBg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#358856"/>
+      <stop offset="100%" stop-color="#225638"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8.5" fill="url(#logoBg)"/>
+  <path d="M16 9.5L9.5 21.5M16 9.5L22.5 21.5M9.5 21.5H22.5" stroke="#fcfbf8" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.9"/>
+  <circle cx="16" cy="9.5" r="3.4" fill="#fcd34d" stroke="#225638" stroke-width="1"/>
+  <circle cx="9.5" cy="21.5" r="2.8" fill="#fcfbf8"/>
+  <circle cx="22.5" cy="21.5" r="2.8" fill="#fcfbf8"/>
+</svg>`;
+
 function buildHtml(
   sections: Section[],
   entries: Entry[],
@@ -598,6 +612,7 @@ function buildHtml(
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Coding 词典（AI Coding Dictionary 中文版）</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
   <meta name="description" content="将 AI 编程的核心词汇翻译成直白易懂的中文。共 7 个章节、72 个核心术语，支持即时搜索与交互式知识图谱。" />
   <script>
     (function () {
@@ -698,13 +713,27 @@ function buildHtml(
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 9px;
       text-decoration: none;
       color: var(--text);
       font-weight: 700;
       font-size: 16px;
       letter-spacing: -0.01em;
       white-space: nowrap;
+    }
+
+    .brand-logo {
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+      display: block;
+      border-radius: 7px;
+      box-shadow: 0 1px 3px rgba(34, 86, 56, 0.25);
+      transition: transform 0.16s ease;
+    }
+
+    .brand:hover .brand-logo {
+      transform: scale(1.06);
     }
 
     .brand-badge {
@@ -2668,6 +2697,7 @@ function buildHtml(
   <header class="topbar">
     <button class="menu-btn" id="menuBtn" type="button" aria-label="打开目录">☰</button>
     <a class="brand" href="#" id="brandLink">
+      <span class="brand-logo" aria-hidden="true">${BRAND_LOGO_SVG}</span>
       <span>AI Coding 词典</span>
       <span class="brand-badge">${entries.length} 词</span>
     </a>
@@ -5042,10 +5072,8 @@ function main(): void {
   const graphJson = JSON.stringify(graphData);
 
   mkdirSync(DIST_DIR, { recursive: true });
-  writeFileSync(
-    join(DIST_DIR, "index.html"),
-    buildHtml(sections, entries, graphJson)
-  );
+  writeFileSync(join(DIST_DIR, "index.html"), buildHtml(sections, entries, graphJson));
+  writeFileSync(join(DIST_DIR, "favicon.svg"), BRAND_LOGO_SVG);
   writeFileSync(join(DIST_DIR, "graph.json"), JSON.stringify(graphData, null, 2));
   writeFileSync(join(DIST_DIR, ".nojekyll"), "");
   console.log(
