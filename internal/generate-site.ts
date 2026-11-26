@@ -542,6 +542,7 @@ function buildHtml(
     <div class="entry-meta">
       <span class="entry-section-tag">Section ${sec.index} · ${escapeHtml(sec.shortTitle.replace(/（.+）$/, ""))}</span>
       <div class="entry-actions">
+        <button class="map-jump-btn" type="button" data-map-slug="${escapeHtml(entry.slug)}" title="在词条地图中定位此词条">地图定位</button>
         <button class="graph-jump-btn" type="button" data-graph-slug="${escapeHtml(entry.slug)}" title="在知识图谱中定位此词条">图谱定位</button>
         <button class="copy-link-btn" type="button" data-copy-slug="${escapeHtml(entry.slug)}" title="复制词条链接" aria-label="复制词条链接">#</button>
       </div>
@@ -1059,6 +1060,7 @@ function buildHtml(
       gap: 4px;
     }
 
+    .map-jump-btn,
     .graph-jump-btn {
       border: 1px solid var(--border);
       background: var(--surface-subtle);
@@ -1069,6 +1071,11 @@ function buildHtml(
       border-radius: 6px;
       cursor: pointer;
       transition: border-color 0.15s, color 0.15s;
+    }
+
+    .map-jump-btn:hover {
+      border-color: #2e6b48;
+      color: #2e6b48;
     }
 
     .graph-jump-btn:hover {
@@ -2279,7 +2286,7 @@ function buildHtml(
       <span class="brand-badge">${entries.length} 词</span>
     </a>
     <div class="view-switch" role="tablist" aria-label="视图切换">
-      <button class="view-tab active map-accent" id="tabMap" type="button" role="tab" aria-selected="true">知识地图</button>
+      <button class="view-tab active map-accent" id="tabMap" type="button" role="tab" aria-selected="true">词条地图</button>
       <button class="view-tab" id="tabGraph" type="button" role="tab" aria-selected="false">知识图谱</button>
       <button class="view-tab" id="tabDict" type="button" role="tab" aria-selected="false">词条列表</button>
     </div>
@@ -2297,7 +2304,7 @@ function buildHtml(
 
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
 
-  <section class="map-view" id="mapView" aria-label="词典知识地图">
+  <section class="map-view" id="mapView" aria-label="词典词条地图">
     <div class="map-workspace">
       <div class="map-canvas-shell">
         <div class="map-viewport" id="mapViewport">
@@ -2464,8 +2471,11 @@ function buildHtml(
           if (target) {
             if (target.classList.contains("hidden")) clearSearch();
             history.replaceState(null, "", "#" + encodeURIComponent(focusSlug));
-            target.scrollIntoView({ behavior: "smooth", block: "start" });
-            setTimeout(function () { flashTarget(focusSlug); }, 120);
+            var prevBehavior = document.documentElement.style.scrollBehavior;
+            document.documentElement.style.scrollBehavior = "auto";
+            target.scrollIntoView({ behavior: "instant", block: "start" });
+            document.documentElement.style.scrollBehavior = prevBehavior;
+            flashTarget(focusSlug);
           }
         } else if (window.location.hash === "#graph" || window.location.hash === "#map") {
           history.replaceState(null, "", window.location.pathname);
@@ -2597,6 +2607,11 @@ function buildHtml(
       }
 
       document.addEventListener("click", function (e) {
+        var mapJumpBtn = e.target.closest(".map-jump-btn");
+        if (mapJumpBtn) {
+          setView("map", mapJumpBtn.dataset.mapSlug);
+          return;
+        }
         var jumpBtn = e.target.closest(".graph-jump-btn");
         if (jumpBtn) {
           setView("graph", jumpBtn.dataset.graphSlug);
@@ -3994,7 +4009,7 @@ function buildHtml(
           updateVisibilityAndHighlight();
           var el = cardEls.get(id);
           if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+            el.scrollIntoView({ behavior: "instant", block: "nearest", inline: "nearest" });
           }
         }
 
