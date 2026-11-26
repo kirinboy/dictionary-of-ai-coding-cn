@@ -2674,8 +2674,8 @@ function buildHtml(
     <div class="view-switch" role="tablist" aria-label="视图切换">
       <button class="view-tab active map-accent" id="tabMap" type="button" role="tab" aria-selected="true">词条地图</button>
       <button class="view-tab" id="tabRoutes" type="button" role="tab" aria-selected="false">学习路线</button>
-      <button class="view-tab" id="tabGraph" type="button" role="tab" aria-selected="false">知识图谱</button>
       <button class="view-tab" id="tabDict" type="button" role="tab" aria-selected="false">词条列表</button>
+      <button class="view-tab" id="tabGraph" type="button" role="tab" aria-selected="false">知识图谱</button>
     </div>
     <div class="search-wrap" id="searchWrap">
       <span class="search-icon">⌕</span>
