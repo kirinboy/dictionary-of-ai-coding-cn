@@ -1668,6 +1668,7 @@ function buildHtml(
     }
 
     .map-mode-btn:hover { border-color: #2e6b48; color: #2e6b48; }
+    .map-mode-btn:disabled { opacity: 0.45; cursor: default; pointer-events: none; }
     .map-mode-btn.active { background: #2e6b48; border-color: #2e6b48; color: #ffffff; }
     [data-theme="dark"] .map-mode-btn { background: #1a211f; border-color: #2d3834; color: #d1d8d4; }
     [data-theme="dark"] .map-mode-btn.active { background: #2e6b48; border-color: #2e6b48; color: #ffffff; }
@@ -2406,6 +2407,7 @@ function buildHtml(
             <span class="map-legend-item"><span class="map-line-swatch" style="background:#2e6b48"></span>已标注关系</span>
           </div>
           <div class="map-tools-right">
+            <button class="map-mode-btn" id="mapClearSelBtn" type="button">取消选中</button>
             <button class="map-mode-btn" id="mapExpandAllBtn" type="button">展开全部 72 词条</button>
             <div class="map-zoom-pill">
               <button class="map-zoom-btn" id="mapZoomOut" type="button" title="缩小">−</button>
@@ -3657,6 +3659,7 @@ function buildHtml(
         var mapBoard = document.getElementById("mapBoard");
         var mapDetail = document.getElementById("mapDetail");
         var mapPathWrap = document.getElementById("mapPathWrap");
+        var mapClearSelBtn = document.getElementById("mapClearSelBtn");
         var mapExpandAllBtn = document.getElementById("mapExpandAllBtn");
         var mapZoomVal = document.getElementById("mapZoomVal");
         var mapBottomNote = document.getElementById("mapBottomNote");
@@ -3853,8 +3856,8 @@ function buildHtml(
         }
 
         function updateVisibilityAndHighlight() {
-          var outsSet = new Set((outMap.get(selectedId) || []).map(function (n) { return n.id; }));
-          var insSet = new Set((inMap.get(selectedId) || []).map(function (n) { return n.id; }));
+          var outsSet = new Set(selectedId ? (outMap.get(selectedId) || []).map(function (n) { return n.id; }) : []);
+          var insSet = new Set(selectedId ? (inMap.get(selectedId) || []).map(function (n) { return n.id; }) : []);
           var visibleCount = 0;
 
           nodeMap.forEach(function (nd) {
@@ -3863,12 +3866,16 @@ function buildHtml(
             var vis = isCardVisible(nd);
             el.classList.toggle("hidden", !vis);
             if (vis) visibleCount++;
-            var isSel = nd.id === selectedId;
-            var isRel = outsSet.has(nd.id) || insSet.has(nd.id);
+            var isSel = Boolean(selectedId) && nd.id === selectedId;
+            var isRel = Boolean(selectedId) && (outsSet.has(nd.id) || insSet.has(nd.id));
             el.classList.toggle("selected", isSel);
             el.classList.toggle("related", !isSel && isRel);
-            el.classList.toggle("dimmed", !isSel && !isRel && !mapQuery);
+            el.classList.toggle("dimmed", Boolean(selectedId) && !isSel && !isRel && !mapQuery);
           });
+
+          if (mapClearSelBtn) {
+            mapClearSelBtn.disabled = !selectedId;
+          }
 
           zoneToggleBtns.forEach(function (btn, secId) {
             var total = data.nodes.filter(function (n) { return n.section === secId; }).length;
@@ -4034,8 +4041,21 @@ function buildHtml(
         }
 
         function renderDetail(id) {
-          var nd = nodeMap.get(id);
-          if (!nd) return;
+          var nd = id ? nodeMap.get(id) : null;
+          if (!nd) {
+            var topHubs = Array.from(nodeMap.values())
+              .sort(function (a, b) { return b.inCount - a.inCount; })
+              .slice(0, 8);
+            var hubChips = topHubs.map(function (h) {
+              return '<button type="button" class="map-rel-pill muted" data-map-select="' + escapeText(h.id) + '">' + escapeText(h.shortLabel) + "</button>";
+            }).join("");
+            mapDetail.innerHTML =
+              '<div class="inspector-empty"><strong>AI Coding 词条地图</strong>' +
+              "按 7 大主题分区呈现全部 " + data.nodes.length + " 个核心术语。<br /><br />" +
+              "点击左侧任意词条卡片，即可查看其标注关系箭头、核心关联与易混淆辨析。" +
+              '<div class="inspector-hub-list">' + hubChips + "</div></div>";
+            return;
+          }
           var secName = (ZONE_SHORT_TITLES[nd.section] || "").replace(/^\d+\s+/, "");
           var outs = outMap.get(nd.id) || [];
           var ins = inMap.get(nd.id) || [];
@@ -4132,6 +4152,16 @@ function buildHtml(
           var graphBtn = e.target.closest("[data-map-graph]");
           if (graphBtn) { setView("graph", graphBtn.dataset.mapGraph); }
         });
+
+        function clearSelection() {
+          selectedId = null;
+          renderDetail(null);
+          updateVisibilityAndHighlight();
+        }
+
+        if (mapClearSelBtn) {
+          mapClearSelBtn.addEventListener("click", clearSelection);
+        }
 
         mapExpandAllBtn.addEventListener("click", function () {
           expandAll = !expandAll;
