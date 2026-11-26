@@ -1357,8 +1357,8 @@ function buildHtml(
     }
 
     .view-tab.active {
-      background: var(--surface);
-      color: var(--text);
+      background: #2e6b48;
+      color: #ffffff;
       box-shadow: var(--shadow-sm);
       font-weight: 600;
     }
@@ -1467,16 +1467,16 @@ function buildHtml(
     .map-zone[data-sec="3"] { background: #ece8f5; }
     .map-zone[data-sec="4"] { background: #f8ece6; }
     .map-zone[data-sec="5"] { background: #f8f0e2; }
-    .map-zone[data-sec="6"] { background: #ede9f5; }
-    .map-zone[data-sec="7"] { background: #e7f2e7; }
+    .map-zone[data-sec="6"] { background: #e4f4f2; }
+    .map-zone[data-sec="7"] { background: #f7eaf0; }
 
     [data-theme="dark"] .map-zone[data-sec="1"] { background: rgba(46, 107, 72, 0.18); }
     [data-theme="dark"] .map-zone[data-sec="2"] { background: rgba(59, 130, 196, 0.18); }
     [data-theme="dark"] .map-zone[data-sec="3"] { background: rgba(111, 92, 195, 0.18); }
     [data-theme="dark"] .map-zone[data-sec="4"] { background: rgba(217, 107, 67, 0.18); }
     [data-theme="dark"] .map-zone[data-sec="5"] { background: rgba(217, 146, 38, 0.17); }
-    [data-theme="dark"] .map-zone[data-sec="6"] { background: rgba(124, 92, 196, 0.18); }
-    [data-theme="dark"] .map-zone[data-sec="7"] { background: rgba(60, 141, 87, 0.18); }
+    [data-theme="dark"] .map-zone[data-sec="6"] { background: rgba(13, 148, 136, 0.18); }
+    [data-theme="dark"] .map-zone[data-sec="7"] { background: rgba(192, 72, 122, 0.18); }
 
     .map-zone-head {
       display: flex;
@@ -1914,18 +1914,68 @@ function buildHtml(
       .map-bottom-note { display: none; }
     }
 
-    /* Graph View */
+    .panel-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .panel-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .panel-action-btn {
+      border: 1px solid #dcdad0;
+      background: #f4f3ee;
+      color: #3f4742;
+      font-size: 12px;
+      font-family: inherit;
+      padding: 2px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+
+    .panel-action-btn:hover {
+      border-color: #2e6b48;
+      color: #2e6b48;
+      background: #ffffff;
+    }
+
+    [data-theme="dark"] .panel-action-btn {
+      background: #1d2422;
+      border-color: #2d3834;
+      color: #c5cfc9;
+    }
+
+    [data-theme="dark"] .panel-action-btn:hover {
+      border-color: #5cc487;
+      color: #67d195;
+      background: #242e2b;
+    }
+
+    /* Graph View (Unified with Editorial Knowledge Map) */
     .graph-view {
       display: none;
       position: relative;
       width: 100%;
       height: calc(100vh - var(--header-h));
+      padding: 16px 20px 14px;
+      gap: 16px;
       overflow: hidden;
-      background:
-        radial-gradient(circle at 42% 48%, color-mix(in srgb, var(--accent) 9%, transparent) 0%, transparent 56%),
-        radial-gradient(var(--border) 1px, transparent 1px),
-        var(--bg);
-      background-size: 100% 100%, 24px 24px, 100% 100%;
+      background: #f6f5ef;
+      color: #1f2421;
+    }
+
+    [data-theme="dark"] .graph-view {
+      background: #101413;
+      color: #e6ebe8;
     }
 
     .graph-stage {
@@ -1933,6 +1983,23 @@ function buildHtml(
       flex: 1;
       min-width: 0;
       height: 100%;
+      border-radius: 16px;
+      border: 1px solid #e3e1d8;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 46% 48%, rgba(46, 107, 72, 0.06) 0%, transparent 56%),
+        radial-gradient(#e4e2d8 1px, transparent 1px),
+        #fcfbf8;
+      background-size: 100% 100%, 24px 24px, 100% 100%;
+    }
+
+    [data-theme="dark"] .graph-stage {
+      border-color: #27302d;
+      background:
+        radial-gradient(circle at 46% 48%, rgba(92, 196, 135, 0.08) 0%, transparent 56%),
+        radial-gradient(#242e2b 1px, transparent 1px),
+        #141918;
+      background-size: 100% 100%, 24px 24px, 100% 100%;
     }
 
     .graph-canvas {
@@ -1960,10 +2027,10 @@ function buildHtml(
       gap: 6px;
       padding: 5px 11px;
       border-radius: 999px;
-      border: 1px solid var(--border);
-      background: color-mix(in srgb, var(--surface) 88%, transparent);
-      backdrop-filter: blur(12px);
-      color: var(--text-secondary);
+      border: 1px solid #dcdad0;
+      background: rgba(252, 251, 248, 0.92);
+      backdrop-filter: blur(10px);
+      color: #4b534e;
       font-size: 12px;
       font-family: inherit;
       cursor: pointer;
@@ -1971,8 +2038,16 @@ function buildHtml(
       transition: border-color 0.15s, opacity 0.15s, transform 0.12s;
     }
 
-    .legend-chip:hover { border-color: var(--border-strong); color: var(--text); transform: translateY(-1px); }
-    .legend-chip.active { border-color: var(--accent); color: var(--text); font-weight: 600; background: var(--surface); }
+    [data-theme="dark"] .legend-chip {
+      background: rgba(20, 25, 24, 0.9);
+      border-color: #2c3632;
+      color: #b4bfb9;
+    }
+
+    .legend-chip:hover { border-color: #2e6b48; color: #1f2421; transform: translateY(-1px); }
+    [data-theme="dark"] .legend-chip:hover { border-color: #5cc487; color: #eef3f0; }
+    .legend-chip.active { border-color: #2e6b48; color: #2e6b48; font-weight: 600; background: #ffffff; }
+    [data-theme="dark"] .legend-chip.active { border-color: #5cc487; color: #67d195; background: #192920; }
     .legend-chip.dimmed { opacity: 0.4; }
 
     .legend-dot {
@@ -1984,9 +2059,9 @@ function buildHtml(
 
     .graph-controls {
       position: absolute;
-      bottom: 16px;
-      left: 16px;
-      right: 16px;
+      bottom: 14px;
+      left: 14px;
+      right: 14px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -1998,29 +2073,39 @@ function buildHtml(
     .graph-ctrl-group {
       pointer-events: auto;
       display: inline-flex;
-      background: color-mix(in srgb, var(--surface) 90%, transparent);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border);
-      border-radius: 10px;
+      background: rgba(252, 251, 248, 0.94);
+      backdrop-filter: blur(10px);
+      border: 1px solid #dcdad0;
+      border-radius: 999px;
       overflow: hidden;
       box-shadow: var(--shadow-sm);
     }
 
+    [data-theme="dark"] .graph-ctrl-group {
+      background: rgba(20, 25, 24, 0.92);
+      border-color: #2c3632;
+    }
+
     .graph-ctrl-btn {
       border: none;
-      border-right: 1px solid var(--border);
+      border-right: 1px solid #e3e1d8;
       background: transparent;
-      color: var(--text-secondary);
-      font-size: 12.5px;
+      color: #4b534e;
+      font-size: 12px;
       font-family: inherit;
-      padding: 7px 12px;
+      padding: 6px 12px;
       cursor: pointer;
       transition: background 0.12s, color 0.12s;
     }
 
+    [data-theme="dark"] .graph-ctrl-btn {
+      border-right-color: #27302d;
+      color: #b4bfb9;
+    }
+
     .graph-ctrl-btn:last-child { border-right: none; }
-    .graph-ctrl-btn:hover { background: var(--surface-subtle); color: var(--text); }
-    .graph-ctrl-btn.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    .graph-ctrl-btn:hover { background: rgba(46, 107, 72, 0.08); color: #2e6b48; }
+    .graph-ctrl-btn.active { background: #2e6b48; color: #ffffff; font-weight: 600; }
 
     .graph-focus-pill {
       pointer-events: auto;
@@ -2029,11 +2114,11 @@ function buildHtml(
       gap: 8px;
       padding: 5px 12px;
       border-radius: 999px;
-      background: var(--accent);
+      background: #2e6b48;
       color: #ffffff;
-      font-size: 12.5px;
+      font-size: 12px;
       font-weight: 500;
-      box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+      box-shadow: 0 4px 12px rgba(46, 107, 72, 0.25);
     }
 
     .graph-focus-pill.visible { display: inline-flex; }
@@ -2052,17 +2137,22 @@ function buildHtml(
     .graph-focus-clear:hover { background: rgba(255, 255, 255, 0.35); }
 
     .graph-inspector {
-      width: 390px;
+      width: 340px;
       height: 100%;
       overflow-y: auto;
-      padding: 20px 22px 32px;
-      background: color-mix(in srgb, var(--surface) 94%, transparent);
-      backdrop-filter: blur(16px);
-      border-left: 1px solid var(--border);
+      padding: 22px 22px 24px;
+      background: #fcfbf8;
+      border: 1px solid #e3e1d8;
+      border-radius: 16px;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
       gap: 14px;
+    }
+
+    [data-theme="dark"] .graph-inspector {
+      background: #141918;
+      border-color: #27302d;
     }
 
     .inspector-empty {
@@ -2089,6 +2179,7 @@ function buildHtml(
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      flex-wrap: wrap;
     }
 
     .inspector-badge {
@@ -2096,21 +2187,11 @@ function buildHtml(
       align-items: center;
       gap: 6px;
       font-size: 12px;
-      color: var(--text-muted);
+      font-weight: 600;
+      color: #2e6b48;
     }
 
-    .inspector-close {
-      border: 1px solid var(--border);
-      background: var(--surface-subtle);
-      color: var(--text-secondary);
-      border-radius: 6px;
-      padding: 2px 8px;
-      font-size: 12px;
-      cursor: pointer;
-      font-family: inherit;
-    }
-
-    .inspector-close:hover { color: var(--text); border-color: var(--border-strong); }
+    [data-theme="dark"] .inspector-badge { color: #67d195; }
 
     .inspector-title {
       margin: 0;
@@ -2121,12 +2202,18 @@ function buildHtml(
     .inspector-desc {
       margin: 0;
       padding: 10px 12px;
-      border-left: 3px solid var(--accent);
-      background: var(--surface-subtle);
+      border-left: 3px solid #2e6b48;
+      background: #f4f3ee;
       border-radius: 0 8px 8px 0;
       font-size: 13.5px;
-      color: var(--text-secondary);
+      color: #474f4a;
       line-height: 1.65;
+    }
+
+    [data-theme="dark"] .inspector-desc {
+      border-left-color: #5cc487;
+      background: #1a211f;
+      color: #b1bbb5;
     }
 
     .inspector-stats {
@@ -2683,13 +2770,13 @@ function buildHtml(
         var focusClear = document.getElementById("graphFocusClear");
 
         var SECTION_PALETTE = {
-          1: { hex: "#3b82f6", light: "#93c5fd", rgb: "59,130,246" },
-          2: { hex: "#8b5cf6", light: "#c4b5fd", rgb: "139,92,246" },
-          3: { hex: "#10b981", light: "#6ee7b7", rgb: "16,185,129" },
-          4: { hex: "#f43f5e", light: "#fda4af", rgb: "244,63,94" },
-          5: { hex: "#f59e0b", light: "#fcd34d", rgb: "245,158,11" },
-          6: { hex: "#06b6d4", light: "#67e8f9", rgb: "6,182,212" },
-          7: { hex: "#d946ef", light: "#f0abfc", rgb: "217,70,239" }
+          1: { hex: "#2f7d4d", light: "#86cfa3", rgb: "47,125,77" },
+          2: { hex: "#3b82c4", light: "#93c5fd", rgb: "59,130,196" },
+          3: { hex: "#6f5cc3", light: "#c4b5fd", rgb: "111,92,195" },
+          4: { hex: "#d96b43", light: "#fbb69c", rgb: "217,107,67" },
+          5: { hex: "#d99226", light: "#fcd38d", rgb: "217,146,38" },
+          6: { hex: "#0d9488", light: "#5eead4", rgb: "13,148,136" },
+          7: { hex: "#c0487a", light: "#f29ec0", rgb: "192,72,122" }
         };
 
         var nodeMap = new Map();
@@ -3059,11 +3146,11 @@ function buildHtml(
           camScale += (targetCamScale - camScale) * 0.16;
 
           var isDark = document.documentElement.dataset.theme === "dark";
-          var textColor = isDark ? "#f0f6fc" : "#18181b";
-          var pillBg = isDark ? "rgba(13,17,23,0.78)" : "rgba(255,255,255,0.86)";
-          var pillBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(24,24,27,0.09)";
-          var outColor = isDark ? "#60a5fa" : "#2563eb";
-          var inColor = isDark ? "#fbbf24" : "#d97706";
+          var textColor = isDark ? "#eef3f0" : "#1f2421";
+          var pillBg = isDark ? "rgba(20,25,24,0.86)" : "rgba(255,255,255,0.92)";
+          var pillBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(31,36,33,0.1)";
+          var outColor = isDark ? "#5cc487" : "#2e6b48";
+          var inColor = isDark ? "#f59e0b" : "#d99226";
 
           var focusId = draggingNode ? draggingNode.id : (hoveredId || selectedId);
           var outsSet = new Set();
@@ -3327,7 +3414,11 @@ function buildHtml(
           inspectorEl.innerHTML =
             '<div class="inspector-top-row">' +
               '<div class="inspector-badge"><span class="legend-dot" style="background:' + SECTION_PALETTE[n.section].hex + '"></span><span>Section ' + n.section + " · " + escapeText(sec ? sec.shortTitle : "") + "</span></div>" +
-              '<button type="button" class="inspector-close" data-clear-focus="1">清除选中</button>' +
+              '<div class="panel-actions">' +
+                '<button type="button" class="panel-action-btn" data-map-id="' + escapeText(n.id) + '" title="在词条地图中定位">地图定位</button>' +
+                '<button type="button" class="panel-action-btn" data-read-id="' + escapeText(n.id) + '" title="在词条列表中打开">打开词条</button>' +
+                '<button type="button" class="panel-action-btn" data-clear-focus="1" title="清除选中">×</button>' +
+              "</div>" +
             "</div>" +
             '<h3 class="inspector-title">' + escapeText(n.term) + "</h3>" +
             '<p class="inspector-desc">' + escapeText(n.description) + "</p>" +
@@ -3340,19 +3431,20 @@ function buildHtml(
               '<button type="button" class="inspector-tab ' + (activeInspectorTab === "article" ? "active" : "") + '" data-itab="article">完整词条</button>' +
             "</div>" +
             '<div class="inspector-pane ' + (activeInspectorTab === "links" ? "" : "hidden") + '" data-ipane="links">' +
-              '<div><div class="inspector-group-title"><span class="legend-dot" style="background:#3b82f6"></span>引用了（出度 · ' + outs.length + '）</div><div class="inspector-chips">' + outChips + "</div></div>" +
-              '<div><div class="inspector-group-title"><span class="legend-dot" style="background:#f59e0b"></span>被以下词条引用（入度 · ' + ins.length + '）</div><div class="inspector-chips">' + inChips + "</div></div>" +
+              '<div><div class="inspector-group-title"><span class="legend-dot" style="background:#2e6b48"></span>引用了（出度 · ' + outs.length + '）</div><div class="inspector-chips">' + outChips + "</div></div>" +
+              '<div><div class="inspector-group-title"><span class="legend-dot" style="background:#d99226"></span>被以下词条引用（入度 · ' + ins.length + '）</div><div class="inspector-chips">' + inChips + "</div></div>" +
             "</div>" +
             '<div class="inspector-pane ' + (activeInspectorTab === "article" ? "" : "hidden") + '" data-ipane="article">' +
               '<div class="inspector-article">' + bodyHtml + "</div>" +
-            "</div>" +
-            '<button type="button" class="inspector-cta" data-read-id="' + escapeText(n.id) + '">在词典页打开 ↗</button>';
+            "</div>";
           inspectorEl.scrollTop = 0;
         }
 
         inspectorEl.addEventListener("click", function (e) {
           var clearBtn = e.target.closest("[data-clear-focus]");
           if (clearBtn) { clearSelection(); return; }
+          var mapBtn = e.target.closest("[data-map-id]");
+          if (mapBtn) { setView("map", mapBtn.dataset.mapId); return; }
           var tabBtn = e.target.closest("[data-itab]");
           if (tabBtn) {
             activeInspectorTab = tabBtn.dataset.itab;
@@ -3531,6 +3623,7 @@ function buildHtml(
         function clearSelection() {
           selectedId = null;
           renderInspector(null);
+          fitView(false);
         }
 
         renderInspector(null);
@@ -3574,8 +3667,8 @@ function buildHtml(
           3: "#6f5cc3",
           4: "#d96b43",
           5: "#d99226",
-          6: "#7c5cc4",
-          7: "#3c8d57"
+          6: "#0d9488",
+          7: "#c0487a"
         };
 
         var ZONE_SHORT_TITLES = {
@@ -3989,17 +4082,19 @@ function buildHtml(
 
           mapDetail.innerHTML =
             '<div>' +
-              '<div class="map-crumb">' + escapeText(secName) + " / " + escapeText(nd.enTitle) + "</div>" +
+              '<div class="panel-top-row">' +
+                '<div class="map-crumb">' + escapeText(secName) + " / " + escapeText(nd.enTitle) + "</div>" +
+                '<div class="panel-actions">' +
+                  '<button type="button" class="panel-action-btn" data-map-graph="' + escapeText(nd.id) + '" title="在知识图谱中定位">图谱定位</button>' +
+                  '<button type="button" class="panel-action-btn" data-map-read="' + escapeText(nd.id) + '" title="在词条列表中打开">打开词条</button>' +
+                "</div>" +
+              "</div>" +
               '<h2 class="map-detail-en">' + escapeText(nd.enTitle) + "</h2>" +
               (nd.zhTitle ? '<div class="map-detail-zh">' + escapeText(nd.zhTitle) + "</div>" : "") +
             "</div>" +
             '<p class="map-detail-desc">' + escapeText(nd.description) + "</p>" +
             '<div><h3 class="map-detail-sec-title">' + escapeText(relTitle) + '</h3><div class="map-rel-list">' + relHtml + "</div></div>" +
-            '<div><h3 class="map-detail-sec-title">' + escapeText(secondTitle) + '</h3><div class="map-rel-list">' + secondHtml + "</div></div>" +
-            '<div class="map-detail-actions">' +
-              '<button type="button" class="map-read-btn" data-map-read="' + escapeText(nd.id) + '">阅读完整词条 ↗</button>' +
-              '<button type="button" class="map-graph-btn" data-map-graph="' + escapeText(nd.id) + '">在交互式知识图谱中查看</button>' +
-            "</div>";
+            '<div><h3 class="map-detail-sec-title">' + escapeText(secondTitle) + '</h3><div class="map-rel-list">' + secondHtml + "</div></div>";
         }
 
         function selectNode(id) {
