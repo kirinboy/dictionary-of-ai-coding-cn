@@ -382,7 +382,19 @@ function stripMarkdownToPlainText(md: string): string {
     .trim();
 }
 
+type LearningRoute = {
+  id: string;
+  number: string;
+  title: string;
+  subtitle: string;
+  color: string;
+  tint: string;
+  row: number;
+  steps: Array<{ id: string; col: number; shared?: boolean }>;
+};
+
 type MapRelations = {
+  learningRoutes: LearningRoute[];
   labeledRelations: Record<string, { verb: string; desc: string }>;
   confusable: Record<string, Array<{ id: string; note: string }>>;
 };
@@ -394,6 +406,16 @@ function loadMapRelations(
   const raw = JSON.parse(readFileSync(RELATIONS_FILE, "utf8")) as MapRelations;
   const validSlugs = new Set(entries.map((e) => e.slug));
   const edgeSet = new Set(edges.map((e) => `${e.source}->${e.target}`));
+
+  for (const route of raw.learningRoutes ?? []) {
+    for (const step of route.steps) {
+      if (!validSlugs.has(step.id)) {
+        fail(
+          `map-relations.json: unknown learningRoute step "${step.id}" in "${route.id}"`
+        );
+      }
+    }
+  }
 
   for (const key of Object.keys(raw.labeledRelations)) {
     const parts = key.split("->");
@@ -457,6 +479,7 @@ function buildGraphData(sections: Section[], entries: Entry[]) {
     sections: sectionMeta,
     nodes,
     edges,
+    learningRoutes: relations.learningRoutes ?? [],
     labeledRelations: relations.labeledRelations,
     confusable: relations.confusable,
   };
@@ -1363,18 +1386,293 @@ function buildHtml(
       font-weight: 600;
     }
 
-    body[data-view="map"] .layout { display: none; }
+    body[data-view="map"] .layout,
+    body[data-view="map"] .graph-view,
+    body[data-view="map"] .routes-view { display: none; }
     body[data-view="map"] .menu-btn { display: none !important; }
-    body[data-view="map"] .graph-view { display: none; }
     body[data-view="map"] .map-view { display: flex; }
 
-    body[data-view="graph"] .layout { display: none; }
+    body[data-view="routes"] .layout,
+    body[data-view="routes"] .map-view,
+    body[data-view="routes"] .graph-view { display: none; }
+    body[data-view="routes"] .menu-btn { display: none !important; }
+    body[data-view="routes"] .routes-view { display: flex; }
+
+    body[data-view="graph"] .layout,
+    body[data-view="graph"] .map-view,
+    body[data-view="graph"] .routes-view { display: none; }
     body[data-view="graph"] .menu-btn { display: none !important; }
-    body[data-view="graph"] .map-view { display: none; }
     body[data-view="graph"] .graph-view { display: flex; }
 
-    body[data-view="dict"] .map-view { display: none; }
+    body[data-view="dict"] .map-view,
+    body[data-view="dict"] .routes-view,
     body[data-view="dict"] .graph-view { display: none; }
+
+    /* Subway-Style Learning Routes View */
+    .routes-view {
+      display: none;
+      width: 100%;
+      height: calc(100vh - var(--header-h));
+      padding: 16px 20px 14px;
+      gap: 16px;
+      overflow: hidden;
+      background: #f6f5ef;
+      color: #1f2421;
+    }
+
+    [data-theme="dark"] .routes-view {
+      background: #101413;
+      color: #e6ebe8;
+    }
+
+    .routes-stage {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      border-radius: 16px;
+      border: 1px solid #e3e1d8;
+      overflow: hidden;
+      background:
+        radial-gradient(#e4e2d8 1px, transparent 1px),
+        #fcfbf8;
+      background-size: 22px 22px, 100% 100%;
+    }
+
+    [data-theme="dark"] .routes-stage {
+      border-color: #27302d;
+      background:
+        radial-gradient(#242e2b 1px, transparent 1px),
+        #141918;
+      background-size: 22px 22px, 100% 100%;
+    }
+
+    .routes-header {
+      padding: 18px 24px 6px;
+      flex-shrink: 0;
+    }
+
+    .routes-header h2 {
+      margin: 0 0 4px;
+      font-size: 22px;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
+
+    .routes-header p {
+      margin: 0;
+      font-size: 13px;
+      color: #6b726d;
+    }
+
+    [data-theme="dark"] .routes-header p { color: #96a29c; }
+
+    .routes-viewport {
+      flex: 1;
+      overflow: auto;
+      padding: 8px 16px 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .routes-svg-wrap {
+      transform-origin: center center;
+      transition: transform 0.18s ease;
+      width: 100%;
+      max-width: 1080px;
+    }
+
+    .routes-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+
+    .route-pill-g { cursor: pointer; }
+    .route-station-g { cursor: pointer; }
+    .route-station-g:hover .station-circle { stroke-width: 4; }
+
+    .routes-detail {
+      width: 340px;
+      height: 100%;
+      overflow-y: auto;
+      padding: 22px 22px 24px;
+      background: #fcfbf8;
+      border: 1px solid #e3e1d8;
+      border-radius: 16px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    [data-theme="dark"] .routes-detail {
+      background: #141918;
+      border-color: #27302d;
+    }
+
+    .route-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      width: fit-content;
+    }
+
+    .route-detail-title {
+      margin: 6px 0 6px;
+      font-size: 22px;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
+
+    .route-detail-sub {
+      margin: 0;
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: #555e58;
+    }
+
+    [data-theme="dark"] .route-detail-sub { color: #a7b3ac; }
+
+    .route-step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .route-step-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: inherit;
+      font-size: 13.5px;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+
+    .route-step-item:hover { background: #f2f1ec; }
+    [data-theme="dark"] .route-step-item:hover { background: #1c2321; }
+
+    .route-step-item.active {
+      background: #e9f2e6;
+      border-color: rgba(46, 107, 72, 0.25);
+      font-weight: 700;
+    }
+
+    [data-theme="dark"] .route-step-item.active {
+      background: rgba(46, 107, 72, 0.25);
+      border-color: rgba(92, 196, 135, 0.35);
+    }
+
+    .route-step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11.5px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      border: 1.5px solid #cbd2ce;
+      color: #5a635e;
+      flex-shrink: 0;
+    }
+
+    .route-step-item.active .route-step-num {
+      color: #ffffff;
+      border-color: transparent;
+    }
+
+    .route-step-shared {
+      margin-left: auto;
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.05);
+      color: #6b726d;
+    }
+
+    [data-theme="dark"] .route-step-shared { background: rgba(255, 255, 255, 0.08); color: #9ea9a3; }
+
+    .route-term-card {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid #e3e1d8;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    [data-theme="dark"] .route-term-card { border-top-color: #27302d; }
+
+    .route-term-kicker {
+      font-size: 12px;
+      font-weight: 600;
+      color: #2e6b48;
+    }
+
+    [data-theme="dark"] .route-term-kicker { color: #67d195; }
+
+    .route-term-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .route-term-desc {
+      margin: 0;
+      font-size: 13.5px;
+      line-height: 1.65;
+      color: #4f5853;
+    }
+
+    [data-theme="dark"] .route-term-desc { color: #aeb9b3; }
+
+    .route-nav-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .route-nav-btn {
+      flex: 1;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid #dcdad0;
+      background: #f4f3ee;
+      color: #363d39;
+      font-size: 12.5px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .route-nav-btn:hover:not(:disabled) { border-color: #2e6b48; color: #2e6b48; background: #ffffff; }
+    .route-nav-btn:disabled { opacity: 0.4; cursor: default; }
+    [data-theme="dark"] .route-nav-btn { background: #1d2422; border-color: #2d3834; color: #c5cfc9; }
+
+    @media (max-width: 1080px) {
+      .routes-view { flex-direction: column; overflow-y: auto; }
+      .routes-stage { min-height: 460px; }
+      .routes-detail { width: 100%; height: auto; overflow: visible; }
+    }
 
     /* Editorial Knowledge Map View (Prototype-inspired) */
     .map-view {
@@ -2375,6 +2673,7 @@ function buildHtml(
     </a>
     <div class="view-switch" role="tablist" aria-label="视图切换">
       <button class="view-tab active map-accent" id="tabMap" type="button" role="tab" aria-selected="true">词条地图</button>
+      <button class="view-tab" id="tabRoutes" type="button" role="tab" aria-selected="false">学习路线</button>
       <button class="view-tab" id="tabGraph" type="button" role="tab" aria-selected="false">知识图谱</button>
       <button class="view-tab" id="tabDict" type="button" role="tab" aria-selected="false">词条列表</button>
     </div>
@@ -2426,6 +2725,41 @@ function buildHtml(
       </div>
       <span class="map-bottom-note" id="mapBottomNote">7 个主题 · 72 个词条 · 核心概念速览</span>
     </div>
+  </section>
+
+  <section class="routes-view" id="routesView" aria-label="学习路线">
+    <div class="routes-stage">
+      <div class="routes-header">
+        <h2>从一个问题开始</h2>
+        <p>5 条问题驱动的推荐阅读路线，双圈节点为多条路线交汇的共享核心词条</p>
+      </div>
+      <div class="routes-viewport">
+        <div class="routes-svg-wrap" id="routesSvgWrap">
+          <svg class="routes-svg" id="routesSvg" viewBox="0 0 1120 590" role="img" aria-label="AI Coding 学习路线地铁图"></svg>
+        </div>
+      </div>
+      <div class="map-footer-bar">
+        <div class="map-legend-inline">
+          <span class="map-legend-item">
+            <svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="4.5" fill="#ffffff" stroke="#2f7d4d" stroke-width="2.2"/></svg>
+            词条站点
+          </span>
+          <span class="map-legend-item">
+            <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#d99226" stroke-width="1.8"/><circle cx="8" cy="8" r="4" fill="#ffffff" stroke="#2f7d4d" stroke-width="2"/></svg>
+            共享枢纽词条
+          </span>
+        </div>
+        <div class="map-tools-right">
+          <div class="map-zoom-pill">
+            <button class="map-zoom-btn" id="routesZoomOut" type="button" title="缩小">−</button>
+            <span class="map-zoom-val" id="routesZoomVal">100%</span>
+            <button class="map-zoom-btn" id="routesZoomIn" type="button" title="放大">＋</button>
+            <button class="map-zoom-btn" id="routesZoomReset" type="button" title="重置缩放">⛶</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside class="routes-detail" id="routesDetail" aria-label="路线与词条详情"></aside>
   </section>
 
   <section class="graph-view" id="graphView" aria-label="词典知识图谱">
@@ -2504,6 +2838,7 @@ function buildHtml(
       var backdrop = document.getElementById("drawerBackdrop");
       var toast = document.getElementById("toast");
       var tabMap = document.getElementById("tabMap");
+      var tabRoutes = document.getElementById("tabRoutes");
       var tabDict = document.getElementById("tabDict");
       var tabGraph = document.getElementById("tabGraph");
       var brandLink = document.getElementById("brandLink");
@@ -2515,6 +2850,7 @@ function buildHtml(
 
       var currentView = "map";
       var mapApi = null;
+      var routesApi = null;
       var graphApi = null;
 
       function showToast(msg) {
@@ -2532,6 +2868,8 @@ function buildHtml(
         tabMap.classList.toggle("active", view === "map");
         tabMap.classList.toggle("map-accent", view === "map");
         tabMap.setAttribute("aria-selected", view === "map" ? "true" : "false");
+        tabRoutes.classList.toggle("active", view === "routes");
+        tabRoutes.setAttribute("aria-selected", view === "routes" ? "true" : "false");
         tabDict.classList.toggle("active", view === "dict");
         tabDict.setAttribute("aria-selected", view === "dict" ? "true" : "false");
         tabGraph.classList.toggle("active", view === "graph");
@@ -2544,6 +2882,12 @@ function buildHtml(
           else mapApi.redrawArrows();
           if (window.location.hash && window.location.hash !== "#map") {
             history.replaceState(null, "", "#map");
+          }
+        } else if (view === "routes") {
+          if (!routesApi) routesApi = initRoutes();
+          routesApi.setSearchQuery(searchInput.value);
+          if (window.location.hash !== "#routes") {
+            history.replaceState(null, "", "#routes");
           }
         } else if (view === "graph") {
           if (!graphApi) graphApi = initGraph();
@@ -2566,12 +2910,13 @@ function buildHtml(
             document.documentElement.style.scrollBehavior = prevBehavior;
             flashTarget(focusSlug);
           }
-        } else if (window.location.hash === "#graph" || window.location.hash === "#map") {
+        } else if (window.location.hash === "#graph" || window.location.hash === "#map" || window.location.hash === "#routes") {
           history.replaceState(null, "", window.location.pathname);
         }
       }
 
       tabMap.addEventListener("click", function () { setView("map"); });
+      tabRoutes.addEventListener("click", function () { setView("routes"); });
       tabDict.addEventListener("click", function () { setView("dict"); });
       tabGraph.addEventListener("click", function () { setView("graph"); });
       brandLink.addEventListener("click", function (e) {
@@ -2592,6 +2937,7 @@ function buildHtml(
         updateThemeLabel();
         if (graphApi) graphApi.draw();
         if (mapApi) mapApi.redrawArrows();
+        if (routesApi) routesApi.redraw();
       });
 
       // Mobile drawer
@@ -2611,6 +2957,7 @@ function buildHtml(
         searchWrap.classList.toggle("has-query", q.length > 0);
 
         if (mapApi) mapApi.setSearchQuery(rawQuery);
+        if (routesApi) routesApi.setSearchQuery(rawQuery);
         if (graphApi) graphApi.setSearchQuery(rawQuery);
 
         var tokens = q ? q.split(/\\s+/).filter(Boolean) : [];
@@ -4197,10 +4544,409 @@ function buildHtml(
         };
       }
 
+      // Subway-Style Learning Routes Engine
+      function initRoutes() {
+        var raw = document.getElementById("graph-data").textContent;
+        var data = JSON.parse(raw);
+        var routes = data.learningRoutes || [];
+        var svg = document.getElementById("routesSvg");
+        var svgWrap = document.getElementById("routesSvgWrap");
+        var detailEl = document.getElementById("routesDetail");
+        var zoomValEl = document.getElementById("routesZoomVal");
+
+        var nodeMap = new Map();
+        data.nodes.forEach(function (n) {
+          var m = n.term.match(/^(.+?)（(.+?)）$/);
+          var enTitle = n.term;
+          var zhTitle = "";
+          if (m) {
+            if (/^[A-Za-z0-9]/.test(m[1])) { enTitle = m[1]; zhTitle = m[2]; }
+            else { zhTitle = m[1]; enTitle = m[2]; }
+          }
+          nodeMap.set(n.id, {
+            id: n.id,
+            term: n.term,
+            shortLabel: n.shortLabel,
+            enTitle: enTitle,
+            zhTitle: zhTitle,
+            description: n.description,
+            searchText: (n.term + " " + n.description + " " + (n.aliases || []).join(" ")).toLowerCase()
+          });
+        });
+
+        // Count how many routes visit each node so shared interchange hubs are automatically detected
+        var nodeRouteColors = new Map();
+        routes.forEach(function (r) {
+          r.steps.forEach(function (st) {
+            var arr = nodeRouteColors.get(st.id) || [];
+            arr.push(r.color);
+            nodeRouteColors.set(st.id, arr);
+          });
+        });
+
+        // Grid geometry for crisp, zero-crossing metro layout
+        var PILL_X = 16;
+        var PILL_W = 202;
+        var PILL_H = 34;
+        var COL_START = 278;
+        var COL_STEP = 126;
+        var ROW_START = 74;
+        var ROW_STEP = 112;
+
+        // First record primary station coordinates (non-shared rows own the hub coordinate)
+        var hubCoords = new Map();
+        routes.forEach(function (r) {
+          var y = ROW_START + r.row * ROW_STEP;
+          r.steps.forEach(function (st) {
+            var x = COL_START + st.col * COL_STEP;
+            if (!st.shared && !hubCoords.has(st.id)) {
+              hubCoords.set(st.id, { x: x, y: y });
+            }
+          });
+        });
+
+        var activeRouteIdx = 0;
+        var activeStepIdx = 1; // Default to Harness on Route 01, matching prototype vibe
+        if (!routes[0] || !routes[0].steps[activeStepIdx]) activeStepIdx = 0;
+        var routeZoom = 1;
+        var routeQuery = "";
+
+        function escapeText(str) {
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function getStepCoord(route, step) {
+          if (step.shared && hubCoords.has(step.id)) {
+            return hubCoords.get(step.id);
+          }
+          return {
+            x: COL_START + step.col * COL_STEP,
+            y: ROW_START + route.row * ROW_STEP
+          };
+        }
+
+        function buildMetroPath(points) {
+          if (points.length === 0) return "";
+          var d = "M " + points[0].x + " " + points[0].y;
+          for (var i = 1; i < points.length; i++) {
+            var p0 = points[i - 1];
+            var p1 = points[i];
+            if (Math.abs(p0.y - p1.y) < 1) {
+              d += " L " + p1.x + " " + p1.y;
+            } else {
+              // Smooth metro-style diagonal/cubic bend into or out of an interchange hub
+              var dx = (p1.x - p0.x) * 0.48;
+              d += " C " + (p0.x + dx) + " " + p0.y + ", " + (p1.x - dx) + " " + p1.y + ", " + p1.x + " " + p1.y;
+            }
+          }
+          return d;
+        }
+
+        function drawMetro() {
+          while (svg.firstChild) svg.removeChild(svg.firstChild);
+          var ns = "http://www.w3.org/2000/svg";
+          var isDark = document.documentElement.dataset.theme === "dark";
+          var textPrimary = isDark ? "#eef3f0" : "#1f2421";
+          var textMuted = isDark ? "#96a29c" : "#5c6560";
+          var circleFill = isDark ? "#141918" : "#ffffff";
+
+          var defs = document.createElementNS(ns, "defs");
+          routes.forEach(function (r) {
+            var marker = document.createElementNS(ns, "marker");
+            marker.setAttribute("id", "metro-arr-" + r.id);
+            marker.setAttribute("viewBox", "0 0 10 10");
+            marker.setAttribute("refX", "7");
+            marker.setAttribute("refY", "5");
+            marker.setAttribute("markerWidth", "5.5");
+            marker.setAttribute("markerHeight", "5.5");
+            marker.setAttribute("orient", "auto");
+            var path = document.createElementNS(ns, "path");
+            path.setAttribute("d", "M 1 1.5 L 8.5 5 L 1 8.5 z");
+            path.setAttribute("fill", r.color);
+            marker.appendChild(path);
+            defs.appendChild(marker);
+          });
+          svg.appendChild(defs);
+
+          var activeRoute = routes[activeRouteIdx];
+          var activeStep = activeRoute ? activeRoute.steps[activeStepIdx] : null;
+          var activeTermId = activeStep ? activeStep.id : null;
+
+          // Draw non-active routes first, then active route on top
+          var drawOrder = routes.map(function (r, i) { return i; }).sort(function (a, b) {
+            return (a === activeRouteIdx ? 1 : 0) - (b === activeRouteIdx ? 1 : 0);
+          });
+
+          // 1. Draw lines & left route pills
+          drawOrder.forEach(function (rIdx) {
+            var r = routes[rIdx];
+            var isActiveRoute = rIdx === activeRouteIdx;
+            var rowY = ROW_START + r.row * ROW_STEP;
+            var lineOpacity = isActiveRoute ? 1 : 0.36;
+
+            var pts = [{ x: PILL_X + PILL_W, y: rowY }];
+            r.steps.forEach(function (st) {
+              pts.push(getStepCoord(r, st));
+            });
+            var lastPt = pts[pts.length - 1];
+            pts.push({ x: lastPt.x + 48, y: rowY });
+
+            var pathEl = document.createElementNS(ns, "path");
+            pathEl.setAttribute("d", buildMetroPath(pts));
+            pathEl.setAttribute("fill", "none");
+            pathEl.setAttribute("stroke", r.color);
+            pathEl.setAttribute("stroke-width", isActiveRoute ? "4.5" : "3.2");
+            pathEl.setAttribute("stroke-linecap", "round");
+            pathEl.setAttribute("stroke-linejoin", "round");
+            pathEl.setAttribute("opacity", String(lineOpacity));
+            pathEl.setAttribute("marker-end", "url(#metro-arr-" + r.id + ")");
+            svg.appendChild(pathEl);
+
+            // Left route title pill
+            var pillG = document.createElementNS(ns, "g");
+            pillG.setAttribute("class", "route-pill-g");
+            pillG.addEventListener("click", function () {
+              selectRouteStep(rIdx, 0);
+            });
+
+            var pillBg = document.createElementNS(ns, "rect");
+            pillBg.setAttribute("x", String(PILL_X));
+            pillBg.setAttribute("y", String(rowY - PILL_H / 2));
+            pillBg.setAttribute("width", String(PILL_W));
+            pillBg.setAttribute("height", String(PILL_H));
+            pillBg.setAttribute("rx", String(PILL_H / 2));
+            pillBg.setAttribute("fill", isActiveRoute ? r.color : (isDark ? "#1c2321" : r.tint));
+            pillBg.setAttribute("stroke", r.color);
+            pillBg.setAttribute("stroke-width", isActiveRoute ? "0" : "1.2");
+            pillG.appendChild(pillBg);
+
+            // Number circle inside pill
+            var numCircle = document.createElementNS(ns, "circle");
+            numCircle.setAttribute("cx", String(PILL_X + 18));
+            numCircle.setAttribute("cy", String(rowY));
+            numCircle.setAttribute("r", "11");
+            numCircle.setAttribute("fill", isActiveRoute ? "rgba(255,255,255,0.22)" : r.color);
+            pillG.appendChild(numCircle);
+
+            var numTxt = document.createElementNS(ns, "text");
+            numTxt.setAttribute("x", String(PILL_X + 18));
+            numTxt.setAttribute("y", String(rowY + 4));
+            numTxt.setAttribute("text-anchor", "middle");
+            numTxt.setAttribute("font-size", "11");
+            numTxt.setAttribute("font-weight", "700");
+            numTxt.setAttribute("fill", "#ffffff");
+            numTxt.textContent = r.number;
+            pillG.appendChild(numTxt);
+
+            var titleTxt = document.createElementNS(ns, "text");
+            titleTxt.setAttribute("x", String(PILL_X + 36));
+            titleTxt.setAttribute("y", String(rowY + 4.5));
+            titleTxt.setAttribute("font-size", "13");
+            titleTxt.setAttribute("font-weight", "700");
+            titleTxt.setAttribute("fill", isActiveRoute ? "#ffffff" : textPrimary);
+            titleTxt.textContent = r.title;
+            pillG.appendChild(titleTxt);
+
+            svg.appendChild(pillG);
+          });
+
+          // 2. Draw stations (avoid duplicating shared hub circles)
+          var drawnHubs = new Set();
+          drawOrder.forEach(function (rIdx) {
+            var r = routes[rIdx];
+            var isActiveRoute = rIdx === activeRouteIdx;
+
+            r.steps.forEach(function (st, sIdx) {
+              var colors = nodeRouteColors.get(st.id) || [r.color];
+              var isShared = colors.length > 1;
+              if (isShared && drawnHubs.has(st.id)) return;
+              if (isShared) drawnHubs.add(st.id);
+
+              var nd = nodeMap.get(st.id);
+              if (!nd) return;
+              var pt = getStepCoord(r, st);
+              var isSelected = st.id === activeTermId;
+              var qMatch = !routeQuery || nd.searchText.indexOf(routeQuery) !== -1;
+              var stOpacity = qMatch ? (isActiveRoute || isSelected || isShared ? 1 : 0.55) : 0.16;
+
+              var g = document.createElementNS(ns, "g");
+              g.setAttribute("class", "route-station-g");
+              g.setAttribute("opacity", String(stOpacity));
+              g.addEventListener("click", function () {
+                if (isShared && activeRoute) {
+                  var inCurr = activeRoute.steps.findIndex(function (x) { return x.id === st.id; });
+                  if (inCurr !== -1) {
+                    selectRouteStep(activeRouteIdx, inCurr);
+                    return;
+                  }
+                }
+                selectRouteStep(rIdx, sIdx);
+              });
+
+              // Halo when selected
+              if (isSelected) {
+                var halo = document.createElementNS(ns, "circle");
+                halo.setAttribute("cx", String(pt.x));
+                halo.setAttribute("cy", String(pt.y));
+                halo.setAttribute("r", isShared ? "22" : "16");
+                halo.setAttribute("fill", r.color);
+                halo.setAttribute("opacity", "0.18");
+                g.appendChild(halo);
+              }
+
+              // Outer interchange ring for shared hubs
+              if (isShared) {
+                var outerRing = document.createElementNS(ns, "circle");
+                outerRing.setAttribute("cx", String(pt.x));
+                outerRing.setAttribute("cy", String(pt.y));
+                outerRing.setAttribute("r", "15");
+                outerRing.setAttribute("fill", circleFill);
+                outerRing.setAttribute("stroke", colors[1] || r.color);
+                outerRing.setAttribute("stroke-width", "3");
+                g.appendChild(outerRing);
+              }
+
+              var circle = document.createElementNS(ns, "circle");
+              circle.setAttribute("class", "station-circle");
+              circle.setAttribute("cx", String(pt.x));
+              circle.setAttribute("cy", String(pt.y));
+              circle.setAttribute("r", isShared ? "9.5" : (isSelected ? "9" : "7.5"));
+              circle.setAttribute("fill", isSelected ? r.color : circleFill);
+              circle.setAttribute("stroke", colors[0] || r.color);
+              circle.setAttribute("stroke-width", isSelected ? "3" : "2.8");
+              g.appendChild(circle);
+
+              // Station labels below circle
+              var lbl1 = document.createElementNS(ns, "text");
+              lbl1.setAttribute("x", String(pt.x));
+              lbl1.setAttribute("y", String(pt.y + (isShared ? 32 : 26)));
+              lbl1.setAttribute("text-anchor", "middle");
+              lbl1.setAttribute("font-size", isShared || isSelected ? "13" : "12");
+              lbl1.setAttribute("font-weight", isShared || isSelected ? "700" : "600");
+              lbl1.setAttribute("fill", textPrimary);
+              lbl1.textContent = nd.shortLabel;
+              g.appendChild(lbl1);
+
+              if (nd.zhTitle && nd.enTitle && nd.shortLabel !== nd.enTitle) {
+                var lbl2 = document.createElementNS(ns, "text");
+                lbl2.setAttribute("x", String(pt.x));
+                lbl2.setAttribute("y", String(pt.y + (isShared ? 47 : 41)));
+                lbl2.setAttribute("text-anchor", "middle");
+                lbl2.setAttribute("font-size", "10.5");
+                lbl2.setAttribute("fill", textMuted);
+                lbl2.textContent = nd.enTitle.length > 18 ? nd.enTitle.slice(0, 16) + "…" : nd.enTitle;
+                g.appendChild(lbl2);
+              }
+
+              svg.appendChild(g);
+            });
+          });
+        }
+
+        function renderDetail() {
+          var r = routes[activeRouteIdx];
+          if (!r) return;
+          var st = r.steps[activeStepIdx] || r.steps[0];
+          var nd = st ? nodeMap.get(st.id) : null;
+
+          var stepsHtml = r.steps.map(function (s, idx) {
+            var sn = nodeMap.get(s.id);
+            var isAct = idx === activeStepIdx;
+            var sharedCount = (nodeRouteColors.get(s.id) || []).length;
+            return '<button type="button" class="route-step-item ' + (isAct ? "active" : "") + '" data-step-idx="' + idx + '">' +
+              '<span class="route-step-num" style="' + (isAct ? ("background:" + r.color) : "") + '">0' + (idx + 1) + "</span>" +
+              '<span>' + escapeText(sn ? sn.shortLabel : s.id) + "</span>" +
+              (sharedCount > 1 ? '<span class="route-step-shared">共享枢纽</span>' : "") +
+            "</button>";
+          }).join("");
+
+          var termCardHtml = nd
+            ? '<div class="route-term-card">' +
+                '<div class="panel-top-row">' +
+                  '<span class="route-term-kicker">当前词条 · 第 ' + (activeStepIdx + 1) + " / " + r.steps.length + " 站</span>" +
+                  '<div class="panel-actions">' +
+                    '<button type="button" class="panel-action-btn" data-route-map="' + escapeText(nd.id) + '" title="在词条地图中定位">地图定位</button>' +
+                    '<button type="button" class="panel-action-btn" data-route-graph="' + escapeText(nd.id) + '" title="在知识图谱中定位">图谱定位</button>' +
+                    '<button type="button" class="panel-action-btn" data-route-read="' + escapeText(nd.id) + '" title="在词条列表中打开">打开词条</button>' +
+                  "</div>" +
+                "</div>" +
+                '<h3 class="route-term-title">' + escapeText(nd.term) + "</h3>" +
+                '<p class="route-term-desc">' + escapeText(nd.description) + "</p>" +
+                '<div class="route-nav-row">' +
+                  '<button type="button" class="route-nav-btn" data-step-delta="-1"' + (activeStepIdx <= 0 ? " disabled" : "") + ">← 上一站</button>" +
+                  '<button type="button" class="route-nav-btn" data-step-delta="1"' + (activeStepIdx >= r.steps.length - 1 ? " disabled" : "") + ">下一站 →</button>" +
+                "</div>" +
+              "</div>"
+            : "";
+
+          detailEl.innerHTML =
+            '<div>' +
+              '<span class="route-badge" style="background:' + r.color + '">路线 ' + escapeText(r.number) + "</span>" +
+              '<h3 class="route-detail-title">' + escapeText(r.title) + "</h3>" +
+              '<p class="route-detail-sub">' + escapeText(r.subtitle) + "</p>" +
+            "</div>" +
+            '<div class="route-step-list">' + stepsHtml + "</div>" +
+            termCardHtml;
+        }
+
+        function selectRouteStep(rIdx, sIdx) {
+          if (!routes[rIdx]) return;
+          activeRouteIdx = rIdx;
+          activeStepIdx = Math.max(0, Math.min(routes[rIdx].steps.length - 1, sIdx));
+          drawMetro();
+          renderDetail();
+        }
+
+        detailEl.addEventListener("click", function (e) {
+          var stepBtn = e.target.closest("[data-step-idx]");
+          if (stepBtn) {
+            selectRouteStep(activeRouteIdx, Number(stepBtn.dataset.stepIdx));
+            return;
+          }
+          var deltaBtn = e.target.closest("[data-step-delta]");
+          if (deltaBtn) {
+            selectRouteStep(activeRouteIdx, activeStepIdx + Number(deltaBtn.dataset.stepDelta));
+            return;
+          }
+          var mapBtn = e.target.closest("[data-route-map]");
+          if (mapBtn) { setView("map", mapBtn.dataset.routeMap); return; }
+          var graphBtn = e.target.closest("[data-route-graph]");
+          if (graphBtn) { setView("graph", graphBtn.dataset.routeGraph); return; }
+          var readBtn = e.target.closest("[data-route-read]");
+          if (readBtn) { setView("dict", readBtn.dataset.routeRead); }
+        });
+
+        function applyZoom(z) {
+          routeZoom = Math.max(0.75, Math.min(1.4, Math.round(z * 100) / 100));
+          svgWrap.style.transform = "scale(" + routeZoom + ")";
+          zoomValEl.textContent = Math.round(routeZoom * 100) + "%";
+        }
+        document.getElementById("routesZoomIn").addEventListener("click", function () { applyZoom(routeZoom + 0.1); });
+        document.getElementById("routesZoomOut").addEventListener("click", function () { applyZoom(routeZoom - 0.1); });
+        document.getElementById("routesZoomReset").addEventListener("click", function () { applyZoom(1); });
+
+        drawMetro();
+        renderDetail();
+
+        return {
+          redraw: drawMetro,
+          setSearchQuery: function (q) {
+            routeQuery = (q || "").trim().toLowerCase();
+            drawMetro();
+          }
+        };
+      }
+
       // Route initial view from URL hash (default: Editorial Knowledge Map)
       var initHash = window.location.hash;
       if (initHash === "#graph") {
         setView("graph");
+      } else if (initHash === "#routes") {
+        setView("routes");
       } else if (initHash && initHash !== "#map") {
         var decodedSlug = decodeURIComponent(initHash.slice(1));
         if (document.getElementById(decodedSlug)) {

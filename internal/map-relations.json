@@ -1,4 +1,92 @@
 {
+  "learningRoutes": [
+    {
+      "id": "how-agent-works",
+      "number": "01",
+      "title": "Agent 如何工作？",
+      "subtitle": "从静态模型到真实执行，看清一次 AI 编程任务背后的完整运转链路。",
+      "color": "#2f7d4d",
+      "tint": "#e9f2e6",
+      "row": 0,
+      "steps": [
+        { "id": "模型model", "col": 0 },
+        { "id": "harness驾驭框架", "col": 1 },
+        { "id": "agent智能体", "col": 2 },
+        { "id": "工具调用tool-call", "col": 3 },
+        { "id": "工具返回结果tool-result", "col": 4 },
+        { "id": "mcp模型上下文协议", "col": 5 }
+      ]
+    },
+    {
+      "id": "steering-and-memory",
+      "number": "02",
+      "title": "如何让 Agent 遵守规范？",
+      "subtitle": "写了一大堆规则它还是不听？用渐进式披露和模块化能力精准引导。",
+      "color": "#0d9488",
+      "tint": "#e4f4f2",
+      "row": 1,
+      "steps": [
+        { "id": "无状态stateless", "col": 0 },
+        { "id": "agent智能体", "col": 2, "shared": true },
+        { "id": "agentsmd", "col": 3 },
+        { "id": "渐进式披露progressive-disclosure", "col": 4 },
+        { "id": "上下文指针context-pointer", "col": 5 },
+        { "id": "skill技能", "col": 6 }
+      ]
+    },
+    {
+      "id": "why-degrades",
+      "number": "03",
+      "title": "为什么越聊越差？",
+      "subtitle": "明明一开始很敏锐，聊久了就开始遗忘、瞎编？搞懂上下文衰减与拯救手段。",
+      "color": "#3b82c4",
+      "tint": "#e6f0f8",
+      "row": 2,
+      "steps": [
+        { "id": "上下文context", "col": 0 },
+        { "id": "上下文窗口context-window", "col": 1 },
+        { "id": "注意力退化attention-degradation", "col": 2 },
+        { "id": "聪明区smart-zone", "col": 3 },
+        { "id": "上下文压缩compaction", "col": 4 },
+        { "id": "交接handoff", "col": 5 }
+      ]
+    },
+    {
+      "id": "why-expensive",
+      "number": "04",
+      "title": "为什么账单这么高？",
+      "subtitle": "几轮对话就烧掉几十万 Token？拆解计费结构、缓存命中与推理成本。",
+      "color": "#d99226",
+      "tint": "#f8f0e2",
+      "row": 3,
+      "steps": [
+        { "id": "token词元", "col": 0 },
+        { "id": "上下文窗口context-window", "col": 1, "shared": true },
+        { "id": "输入-tokeninput-tokens", "col": 2 },
+        { "id": "前缀缓存prefix-cache", "col": 3 },
+        { "id": "输出-tokenoutput-tokens", "col": 4 },
+        { "id": "推理强度effort", "col": 5 }
+      ]
+    },
+    {
+      "id": "autonomous-delivery",
+      "number": "05",
+      "title": "如何安全放手自动干活？",
+      "subtitle": "从实时盯盘到无人值守批量交付，搭建可控的 AI 工程流水线。",
+      "color": "#c0487a",
+      "tint": "#f7eaf0",
+      "row": 4,
+      "steps": [
+        { "id": "追问式访谈grilling", "col": 0 },
+        { "id": "spec规格说明书", "col": 1 },
+        { "id": "ticket任务单", "col": 2 },
+        { "id": "沙箱sandbox", "col": 3 },
+        { "id": "无人值守afk", "col": 4 },
+        { "id": "自动化检查automated-check", "col": 5 },
+        { "id": "软件工厂software-factory", "col": 6 }
+      ]
+    }
+  ],
   "labeledRelations": {
     "ai人工智能->模型model": { "verb": "当前指代", "desc": "当下主要指大语言模型" },
     "ai人工智能->harness驾驭框架": { "verb": "落于", "desc": "常被误用来指外围软件层" },
