@@ -381,7 +381,41 @@ function stripMarkdownToPlainText(md: string): string {
     .trim();
 }
 
-function buildHtml(sections: Section[], entries: Entry[]): string {
+function buildGraphData(sections: Section[], entries: Entry[]) {
+  const slugByTerm = new Map(entries.map((e) => [e.term, e.slug]));
+  const nodes = entries.map((e) => ({
+    id: e.slug,
+    term: e.term,
+    shortLabel: e.term.replace(/（.+）$/, ""),
+    section: e.sectionIndex,
+    description: e.description,
+    aliases: e.aliases,
+    outCount: e.outgoing.length,
+    inCount: e.backlinks.length,
+  }));
+  const edges: Array<{ source: string; target: string }> = [];
+  for (const e of entries) {
+    for (const targetTerm of e.outgoing) {
+      const targetSlug = slugByTerm.get(targetTerm);
+      if (targetSlug) {
+        edges.push({ source: e.slug, target: targetSlug });
+      }
+    }
+  }
+  const sectionMeta = sections.map((s) => ({
+    index: s.index,
+    heading: s.heading,
+    shortTitle: s.shortTitle.replace(/（.+）$/, ""),
+    count: s.terms.length,
+  }));
+  return { sections: sectionMeta, nodes, edges };
+}
+
+function buildHtml(
+  sections: Section[],
+  entries: Entry[],
+  graphJson: string
+): string {
   const entryByTerm = new Map(entries.map((e) => [e.term, e]));
 
   const sidebarHtml = sections
@@ -456,7 +490,10 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
   <header class="entry-header">
     <div class="entry-meta">
       <span class="entry-section-tag">Section ${sec.index} · ${escapeHtml(sec.shortTitle.replace(/（.+）$/, ""))}</span>
-      <button class="copy-link-btn" type="button" data-copy-slug="${escapeHtml(entry.slug)}" title="复制词条链接" aria-label="复制词条链接">#</button>
+      <div class="entry-actions">
+        <button class="graph-jump-btn" type="button" data-graph-slug="${escapeHtml(entry.slug)}" title="在知识图谱中定位此词条">图谱定位</button>
+        <button class="copy-link-btn" type="button" data-copy-slug="${escapeHtml(entry.slug)}" title="复制词条链接" aria-label="复制词条链接">#</button>
+      </div>
     </div>
     <h2 class="entry-title">${escapeHtml(entry.term)}</h2>
     ${entry.description ? `<p class="entry-desc">${escapeHtml(entry.description)}</p>` : ""}
@@ -486,7 +523,7 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Coding 词典（AI Coding Dictionary 中文版）</title>
-  <meta name="description" content="将 AI 编程的核心词汇翻译成直白易懂的中文。共 7 个章节、72 个核心术语，支持即时搜索与词条双向引用。" />
+  <meta name="description" content="将 AI 编程的核心词汇翻译成直白易懂的中文。共 7 个章节、72 个核心术语，支持即时搜索与交互式知识图谱。" />
   <script>
     (function () {
       var saved = localStorage.getItem("theme");
@@ -965,6 +1002,29 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
       font-weight: 500;
     }
 
+    .entry-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .graph-jump-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-subtle);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-family: inherit;
+      padding: 2px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .graph-jump-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
     .copy-link-btn {
       border: 1px solid transparent;
       background: transparent;
@@ -1214,6 +1274,376 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
       transform: translateY(0);
     }
 
+    /* View switcher */
+    .view-switch {
+      display: inline-flex;
+      padding: 3px;
+      border-radius: 9px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      gap: 2px;
+    }
+
+    .view-tab {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      padding: 4px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .view-tab.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+      font-weight: 600;
+    }
+
+    body[data-view="graph"] .layout { display: none; }
+    body[data-view="graph"] .menu-btn { display: none !important; }
+    body[data-view="graph"] .graph-view { display: flex; }
+
+    /* Graph View */
+    .graph-view {
+      display: none;
+      position: relative;
+      width: 100%;
+      height: calc(100vh - var(--header-h));
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 42% 48%, color-mix(in srgb, var(--accent) 9%, transparent) 0%, transparent 56%),
+        radial-gradient(var(--border) 1px, transparent 1px),
+        var(--bg);
+      background-size: 100% 100%, 24px 24px, 100% 100%;
+    }
+
+    .graph-stage {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+    }
+
+    .graph-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .graph-legend {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .legend-chip {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      backdrop-filter: blur(12px);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.15s, opacity 0.15s, transform 0.12s;
+    }
+
+    .legend-chip:hover { border-color: var(--border-strong); color: var(--text); transform: translateY(-1px); }
+    .legend-chip.active { border-color: var(--accent); color: var(--text); font-weight: 600; background: var(--surface); }
+    .legend-chip.dimmed { opacity: 0.4; }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .graph-controls {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .graph-ctrl-group {
+      pointer-events: auto;
+      display: inline-flex;
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .graph-ctrl-btn {
+      border: none;
+      border-right: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      font-family: inherit;
+      padding: 7px 12px;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .graph-ctrl-btn:last-child { border-right: none; }
+    .graph-ctrl-btn:hover { background: var(--surface-subtle); color: var(--text); }
+    .graph-ctrl-btn.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+    .graph-focus-pill {
+      pointer-events: auto;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #ffffff;
+      font-size: 12.5px;
+      font-weight: 500;
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+    }
+
+    .graph-focus-pill.visible { display: inline-flex; }
+
+    .graph-focus-clear {
+      border: none;
+      background: rgba(255, 255, 255, 0.22);
+      color: #ffffff;
+      border-radius: 999px;
+      padding: 1px 7px;
+      font-size: 11.5px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .graph-focus-clear:hover { background: rgba(255, 255, 255, 0.35); }
+
+    .graph-inspector {
+      width: 390px;
+      height: 100%;
+      overflow-y: auto;
+      padding: 20px 22px 32px;
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      backdrop-filter: blur(16px);
+      border-left: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .inspector-empty {
+      margin: auto 0;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13.5px;
+      line-height: 1.75;
+      padding: 24px 12px;
+    }
+
+    .inspector-empty strong { color: var(--text); display: block; margin-bottom: 8px; font-size: 16px; }
+
+    .inspector-hub-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 16px;
+    }
+
+    .inspector-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .inspector-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .inspector-close {
+      border: 1px solid var(--border);
+      background: var(--surface-subtle);
+      color: var(--text-secondary);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .inspector-close:hover { color: var(--text); border-color: var(--border-strong); }
+
+    .inspector-title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.3;
+    }
+
+    .inspector-desc {
+      margin: 0;
+      padding: 10px 12px;
+      border-left: 3px solid var(--accent);
+      background: var(--surface-subtle);
+      border-radius: 0 8px 8px 0;
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    .inspector-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .stat-pill {
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .inspector-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 3px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .inspector-tab {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-family: inherit;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .inspector-tab.active {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 600;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .inspector-pane { display: flex; flex-direction: column; gap: 14px; }
+    .inspector-pane.hidden { display: none; }
+
+    .inspector-article {
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    .inspector-article p { margin: 0 0 12px; font-size: 14px; }
+    .inspector-article table { font-size: 12.5px; }
+    .inspector-article th, .inspector-article td { padding: 7px 10px; }
+
+    .inspector-cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 9px 14px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #ffffff;
+      font-size: 13.5px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: none;
+    }
+
+    .inspector-cta:hover { opacity: 0.92; }
+
+    .inspector-group-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .inspector-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .node-chip {
+      font-size: 12px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface-subtle);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.12s, color 0.12s;
+    }
+
+    .node-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+    .hero-graph-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .hero-graph-btn:hover { opacity: 0.92; }
+
     @media (max-width: 960px) {
       .menu-btn { display: inline-flex; }
       .sidebar {
@@ -1232,16 +1662,28 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
       .hero { padding: 20px; }
       .entry { padding: 18px; }
       .brand-badge { display: none; }
+      .graph-view { flex-direction: column; }
+      .graph-inspector {
+        width: 100%;
+        height: 42%;
+        border-left: none;
+        border-top: 1px solid var(--border);
+      }
+      .graph-hint { display: none; }
     }
   </style>
 </head>
 <body>
   <header class="topbar">
     <button class="menu-btn" id="menuBtn" type="button" aria-label="打开目录">☰</button>
-    <a class="brand" href="#">
+    <a class="brand" href="#" id="brandLink">
       <span>AI Coding 词典</span>
       <span class="brand-badge">${entries.length} 词</span>
     </a>
+    <div class="view-switch" role="tablist" aria-label="视图切换">
+      <button class="view-tab active" id="tabDict" type="button" role="tab" aria-selected="true">词典</button>
+      <button class="view-tab" id="tabGraph" type="button" role="tab" aria-selected="false">知识图谱</button>
+    </div>
     <div class="search-wrap" id="searchWrap">
       <span class="search-icon">⌕</span>
       <input class="search-input" id="searchInput" type="search" placeholder="搜索中文词条、英文原词、别名或正文…" autocomplete="off" />
@@ -1255,6 +1697,30 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
   </header>
 
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+  <section class="graph-view" id="graphView" aria-label="词典知识图谱">
+    <div class="graph-stage">
+      <div class="graph-legend" id="graphLegend"></div>
+      <canvas class="graph-canvas" id="graphCanvas"></canvas>
+      <div class="graph-controls">
+        <div class="graph-ctrl-group" role="group" aria-label="连线方向筛选">
+          <button class="graph-ctrl-btn active" type="button" data-dir="both">全部连线</button>
+          <button class="graph-ctrl-btn" type="button" data-dir="out">仅看引用</button>
+          <button class="graph-ctrl-btn" type="button" data-dir="in">仅看被引用</button>
+        </div>
+        <div class="graph-ctrl-group" role="group" aria-label="视图操作">
+          <button class="graph-ctrl-btn" id="zoomInBtn" type="button" title="放大">＋</button>
+          <button class="graph-ctrl-btn" id="zoomOutBtn" type="button" title="缩小">－</button>
+          <button class="graph-ctrl-btn" id="resetGraphBtn" type="button">适应全局</button>
+        </div>
+        <div class="graph-focus-pill" id="graphFocusPill">
+          <span id="graphFocusText"></span>
+          <button class="graph-focus-clear" id="graphFocusClear" type="button">退出聚焦</button>
+        </div>
+      </div>
+    </div>
+    <aside class="graph-inspector" id="graphInspector" aria-label="节点详情"></aside>
+  </section>
 
   <div class="layout">
     <aside class="sidebar" id="sidebar" aria-label="词典目录">
@@ -1271,6 +1737,7 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
           <span>原著：<a href="https://github.com/mattpocock/dictionary-of-ai-coding" target="_blank" rel="noopener noreferrer">mattpocock/dictionary-of-ai-coding</a></span>
         </div>
         <nav class="section-pills" aria-label="章节快速跳转">
+          <button class="hero-graph-btn" id="heroGraphBtn" type="button">✦ 打开交互式知识图谱</button>
           ${sectionPillsHtml}
         </nav>
       </section>
@@ -1290,6 +1757,8 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script id="graph-data" type="application/json">${graphJson.replace(/<\/script/gi, "<\\/script")}</script>
+
   <script>
     (function () {
       var searchInput = document.getElementById("searchInput");
@@ -1304,11 +1773,17 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
       var sidebar = document.getElementById("sidebar");
       var backdrop = document.getElementById("drawerBackdrop");
       var toast = document.getElementById("toast");
+      var tabDict = document.getElementById("tabDict");
+      var tabGraph = document.getElementById("tabGraph");
+      var brandLink = document.getElementById("brandLink");
 
       var entries = Array.prototype.slice.call(document.querySelectorAll(".entry"));
       var sections = Array.prototype.slice.call(document.querySelectorAll(".dict-section"));
       var navTerms = Array.prototype.slice.call(document.querySelectorAll(".nav-term"));
       var navSections = Array.prototype.slice.call(document.querySelectorAll(".nav-section"));
+
+      var currentView = "dict";
+      var graphApi = null;
 
       function showToast(msg) {
         toast.textContent = msg;
@@ -1318,6 +1793,47 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
           toast.classList.remove("show");
         }, 1800);
       }
+
+      function setView(view, focusSlug) {
+        currentView = view;
+        document.body.dataset.view = view;
+        tabDict.classList.toggle("active", view === "dict");
+        tabDict.setAttribute("aria-selected", view === "dict" ? "true" : "false");
+        tabGraph.classList.toggle("active", view === "graph");
+        tabGraph.setAttribute("aria-selected", view === "graph" ? "true" : "false");
+        closeDrawer();
+        if (view === "graph") {
+          if (!graphApi) graphApi = initGraph();
+          graphApi.resize();
+          graphApi.setSearchQuery(searchInput.value);
+          if (focusSlug) {
+            graphApi.focusNode(focusSlug);
+          }
+          if (window.location.hash !== "#graph") {
+            history.replaceState(null, "", "#graph");
+          }
+        } else if (focusSlug) {
+          var target = document.getElementById(focusSlug);
+          if (target) {
+            if (target.classList.contains("hidden")) clearSearch();
+            history.replaceState(null, "", "#" + encodeURIComponent(focusSlug));
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+            setTimeout(function () { flashTarget(focusSlug); }, 120);
+          }
+        } else if (window.location.hash === "#graph") {
+          history.replaceState(null, "", window.location.pathname);
+        }
+      }
+
+      tabDict.addEventListener("click", function () { setView("dict"); });
+      tabGraph.addEventListener("click", function () { setView("graph"); });
+      brandLink.addEventListener("click", function (e) {
+        if (currentView === "graph") {
+          e.preventDefault();
+          setView("dict");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      });
 
       // Theme toggle
       function updateThemeLabel() {
@@ -1330,6 +1846,7 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
         document.documentElement.dataset.theme = next;
         localStorage.setItem("theme", next);
         updateThemeLabel();
+        if (graphApi) graphApi.draw();
       });
 
       // Mobile drawer
@@ -1347,6 +1864,8 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
       function applyFilter(rawQuery) {
         var q = rawQuery.trim().toLowerCase();
         searchWrap.classList.toggle("has-query", q.length > 0);
+
+        if (graphApi) graphApi.setSearchQuery(rawQuery);
 
         var tokens = q ? q.split(/\\s+/).filter(Boolean) : [];
         var visibleSlugs = new Set();
@@ -1407,9 +1926,13 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
           e.preventDefault();
           searchInput.focus();
           searchInput.select();
-        } else if (e.key === "Escape" && document.activeElement === searchInput) {
-          clearSearch();
-          searchInput.blur();
+        } else if (e.key === "Escape") {
+          if (document.activeElement === searchInput) {
+            clearSearch();
+            searchInput.blur();
+          } else if (currentView === "graph" && graphApi) {
+            graphApi.clearSelection();
+          }
         }
       });
 
@@ -1427,6 +1950,11 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
       }
 
       document.addEventListener("click", function (e) {
+        var jumpBtn = e.target.closest(".graph-jump-btn");
+        if (jumpBtn) {
+          setView("graph", jumpBtn.dataset.graphSlug);
+          return;
+        }
         var link = e.target.closest("a.term-link, a.backlink-chip, a.nav-term");
         if (link) {
           var slug = link.dataset.target || link.dataset.slug;
@@ -1472,6 +2000,902 @@ function buildHtml(sections: Section[], entries: Entry[]): string {
           });
         }, { rootMargin: "-15% 0px -75% 0px" });
         entries.forEach(function (el) { observer.observe(el); });
+      }
+
+      // Hero quick CTA
+      var heroGraphBtn = document.getElementById("heroGraphBtn");
+      if (heroGraphBtn) {
+        heroGraphBtn.addEventListener("click", function () { setView("graph"); });
+      }
+
+      // Tactile 60fps Clustered Physics Knowledge Graph Engine
+      function initGraph() {
+        var raw = document.getElementById("graph-data").textContent;
+        var data = JSON.parse(raw);
+        var canvas = document.getElementById("graphCanvas");
+        var ctx = canvas.getContext("2d");
+        var legendEl = document.getElementById("graphLegend");
+        var inspectorEl = document.getElementById("graphInspector");
+        var focusPill = document.getElementById("graphFocusPill");
+        var focusText = document.getElementById("graphFocusText");
+        var focusClear = document.getElementById("graphFocusClear");
+
+        var SECTION_PALETTE = {
+          1: { hex: "#3b82f6", light: "#93c5fd", rgb: "59,130,246" },
+          2: { hex: "#8b5cf6", light: "#c4b5fd", rgb: "139,92,246" },
+          3: { hex: "#10b981", light: "#6ee7b7", rgb: "16,185,129" },
+          4: { hex: "#f43f5e", light: "#fda4af", rgb: "244,63,94" },
+          5: { hex: "#f59e0b", light: "#fcd34d", rgb: "245,158,11" },
+          6: { hex: "#06b6d4", light: "#67e8f9", rgb: "6,182,212" },
+          7: { hex: "#d946ef", light: "#f0abfc", rgb: "217,70,239" }
+        };
+
+        var nodeMap = new Map();
+        var outMap = new Map();
+        var inMap = new Map();
+        var activeSection = 0;
+        var edgeDir = "both";
+        var searchQuery = "";
+        var selectedId = null;
+        var hoveredId = null;
+        var activeInspectorTab = "links";
+
+        // Smooth camera state (lerped every frame for silky inertia)
+        var width = 800;
+        var height = 600;
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var camX = 0, camY = 0, camScale = 0.72;
+        var targetCamX = 0, targetCamY = 0, targetCamScale = 0.72;
+        var panVelX = 0, panVelY = 0;
+
+        // 7 spacious module cluster anchors arranged in a balanced constellation
+        var clusterCenters = {};
+        var secCount = data.sections.length;
+        var ringRadius = 430;
+        data.sections.forEach(function (sec, idx) {
+          var angle = (idx / secCount) * Math.PI * 2 - Math.PI / 2;
+          clusterCenters[sec.index] = {
+            x: Math.cos(angle) * ringRadius,
+            y: Math.sin(angle) * ringRadius,
+            shortTitle: sec.shortTitle
+          };
+        });
+
+        var secCounters = {};
+        var nodes = data.nodes.map(function (n) {
+          var c = clusterCenters[n.section] || { x: 0, y: 0 };
+          var idx = secCounters[n.section] || 0;
+          secCounters[n.section] = idx + 1;
+          var golden = idx * 2.39996;
+          var localR = idx === 0 ? 0 : 42 + Math.sqrt(idx) * 34;
+          var degree = n.inCount + n.outCount;
+          var obj = {
+            id: n.id,
+            term: n.term,
+            shortLabel: n.shortLabel,
+            section: n.section,
+            description: n.description,
+            aliases: n.aliases || [],
+            inCount: n.inCount,
+            outCount: n.outCount,
+            degree: degree,
+            r: 7 + Math.min(20, Math.sqrt(n.inCount) * 2.75),
+            x: c.x + Math.cos(golden) * localR,
+            y: c.y + Math.sin(golden) * localR,
+            vx: 0,
+            vy: 0,
+            visAlpha: 1,
+            visScale: 1,
+            searchText: (n.term + " " + n.description + " " + (n.aliases || []).join(" ")).toLowerCase()
+          };
+          nodeMap.set(obj.id, obj);
+          outMap.set(obj.id, []);
+          inMap.set(obj.id, []);
+          return obj;
+        });
+
+        var edges = data.edges.map(function (e, idx) {
+          var s = nodeMap.get(e.source);
+          var t = nodeMap.get(e.target);
+          if (s && t) {
+            outMap.get(s.id).push(t);
+            inMap.get(t.id).push(s);
+          }
+          return {
+            source: s,
+            target: t,
+            sameSec: s && t ? s.section === t.section : false,
+            phase: (idx * 0.137) % 1
+          };
+        }).filter(function (e) { return e.source && e.target; });
+
+        var topHubs = nodes.slice().sort(function (a, b) { return b.inCount - a.inCount; }).slice(0, 8);
+
+        // Physics state
+        var simEnergy = 1.0;
+        var draggingNode = null;
+        var dragTargetX = 0;
+        var dragTargetY = 0;
+        var dragVelX = 0;
+        var dragVelY = 0;
+
+        function stepPhysics() {
+          var activeEnergy = draggingNode ? Math.max(simEnergy, 0.35) : simEnergy;
+          if (activeEnergy < 0.002 && !draggingNode) return;
+
+          // 1. Node-node repulsion & soft collision
+          for (var i = 0; i < nodes.length; i++) {
+            var a = nodes[i];
+            for (var j = i + 1; j < nodes.length; j++) {
+              var b = nodes[j];
+              var dx = b.x - a.x;
+              var dy = b.y - a.y;
+              var distSq = dx * dx + dy * dy + 0.01;
+              var sameSec = a.section === b.section;
+              var maxRange = sameSec ? 240 : 280;
+              if (distSq > maxRange * maxRange) continue;
+
+              var dist = Math.sqrt(distSq);
+              var minDist = a.r + b.r + (sameSec ? 44 : 78);
+              var rep = (sameSec ? 1600 : 2600) / distSq;
+              if (dist < minDist) {
+                rep += ((minDist - dist) / dist) * 0.36;
+              }
+              var fx = (dx / dist) * rep * activeEnergy;
+              var fy = (dy / dist) * rep * activeEnergy;
+              if (a !== draggingNode) { a.vx -= fx; a.vy -= fy; }
+              if (b !== draggingNode) { b.vx += fx; b.vy += fy; }
+            }
+          }
+
+          // 2. Elastic spring pull along edges (tactile drag tug!)
+          for (var k = 0; k < edges.length; k++) {
+            var e = edges[k];
+            var s = e.source;
+            var t = e.target;
+            var isDragEdge = (s === draggingNode || t === draggingNode);
+            if (!e.sameSec && !isDragEdge) continue;
+
+            var dx2 = t.x - s.x;
+            var dy2 = t.y - s.y;
+            var d2 = Math.sqrt(dx2 * dx2 + dy2 * dy2) || 1;
+            var restLen = e.sameSec ? 96 : 260;
+            var strength = isDragEdge ? (e.sameSec ? 0.032 : 0.006) : 0.007;
+            var pull = (d2 - restLen) * strength * activeEnergy;
+            var px = (dx2 / d2) * pull;
+            var py = (dy2 / d2) * pull;
+            if (s !== draggingNode) { s.vx += px; s.vy += py; }
+            if (t !== draggingNode) { t.vx -= px; t.vy -= py; }
+          }
+
+          // 3. Soft cluster anchor gravity (keeps each module neatly grouped)
+          for (var m = 0; m < nodes.length; m++) {
+            var nd = nodes[m];
+            if (nd === draggingNode) {
+              var prevX = nd.x;
+              var prevY = nd.y;
+              nd.x += (dragTargetX - nd.x) * 0.44;
+              nd.y += (dragTargetY - nd.y) * 0.44;
+              dragVelX = (nd.x - prevX) * 0.55;
+              dragVelY = (nd.y - prevY) * 0.55;
+              nd.vx = 0;
+              nd.vy = 0;
+              continue;
+            }
+            var cc = clusterCenters[nd.section];
+            if (cc) {
+              nd.vx += (cc.x - nd.x) * 0.022 * activeEnergy;
+              nd.vy += (cc.y - nd.y) * 0.022 * activeEnergy;
+            }
+            nd.vx *= 0.84;
+            nd.vy *= 0.84;
+            nd.x += nd.vx;
+            nd.y += nd.vy;
+          }
+
+          if (!draggingNode) {
+            simEnergy *= 0.978;
+          }
+        }
+
+        // Pre-warm layout smoothly before first frame
+        for (var pre = 0; pre < 140; pre++) {
+          stepPhysics();
+        }
+        simEnergy = 0.08;
+
+        // Build section legend chips
+        var allBtn = document.createElement("button");
+        allBtn.type = "button";
+        allBtn.className = "legend-chip active";
+        allBtn.dataset.sec = "0";
+        allBtn.innerHTML = "<span>全部模块</span>";
+        legendEl.appendChild(allBtn);
+
+        data.sections.forEach(function (sec) {
+          var pal = SECTION_PALETTE[sec.index];
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "legend-chip";
+          btn.dataset.sec = String(sec.index);
+          btn.innerHTML = '<span class="legend-dot" style="background:' + pal.hex + '"></span><span>0' + sec.index + " " + sec.shortTitle + "</span>";
+          legendEl.appendChild(btn);
+        });
+
+        function flyToSection(secId) {
+          if (secId === 0) {
+            fitView();
+            return;
+          }
+          var members = nodes.filter(function (n) { return n.section === secId; });
+          if (!members.length) return;
+          var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          members.forEach(function (n) {
+            if (n.x - n.r < minX) minX = n.x - n.r;
+            if (n.x + n.r > maxX) maxX = n.x + n.r;
+            if (n.y - n.r < minY) minY = n.y - n.r;
+            if (n.y + n.r > maxY) maxY = n.y + n.r;
+          });
+          targetCamX = (minX + maxX) / 2;
+          targetCamY = (minY + maxY) / 2;
+          var spanX = (maxX - minX) + 180;
+          var spanY = (maxY - minY) + 180;
+          targetCamScale = Math.max(0.55, Math.min(1.55, Math.min(width / spanX, height / spanY)));
+        }
+
+        legendEl.addEventListener("click", function (e) {
+          var btn = e.target.closest(".legend-chip");
+          if (!btn) return;
+          var secId = Number(btn.dataset.sec);
+          activeSection = activeSection === secId ? 0 : secId;
+          Array.prototype.slice.call(legendEl.querySelectorAll(".legend-chip")).forEach(function (el) {
+            var id = Number(el.dataset.sec);
+            el.classList.toggle("active", id === activeSection);
+            el.classList.toggle("dimmed", activeSection !== 0 && id !== 0 && id !== activeSection);
+          });
+          flyToSection(activeSection);
+        });
+
+        document.querySelectorAll(".graph-ctrl-btn[data-dir]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            edgeDir = btn.dataset.dir;
+            document.querySelectorAll(".graph-ctrl-btn[data-dir]").forEach(function (b) {
+              b.classList.toggle("active", b === btn);
+            });
+          });
+        });
+
+        function screenToWorld(sx, sy) {
+          return {
+            x: (sx - width / 2) / camScale + camX,
+            y: (sy - height / 2) / camScale + camY
+          };
+        }
+
+        function fitView(instant) {
+          var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          nodes.forEach(function (n) {
+            if (n.x - n.r < minX) minX = n.x - n.r;
+            if (n.x + n.r > maxX) maxX = n.x + n.r;
+            if (n.y - n.r < minY) minY = n.y - n.r;
+            if (n.y + n.r > maxY) maxY = n.y + n.r;
+          });
+          var spanX = (maxX - minX) + 220;
+          var spanY = (maxY - minY) + 240;
+          targetCamX = (minX + maxX) / 2;
+          targetCamY = (minY + maxY) / 2;
+          targetCamScale = Math.max(0.32, Math.min(1.15, Math.min(width / spanX, height / spanY)));
+          if (instant) {
+            camX = targetCamX;
+            camY = targetCamY;
+            camScale = targetCamScale;
+          }
+        }
+
+        function resize() {
+          var rect = canvas.parentElement.getBoundingClientRect();
+          width = Math.max(300, rect.width);
+          height = Math.max(300, rect.height);
+          dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.floor(width * dpr);
+          canvas.height = Math.floor(height * dpr);
+          canvas.style.width = width + "px";
+          canvas.style.height = height + "px";
+          if (!resize._inited) {
+            resize._inited = true;
+            fitView(true);
+          }
+        }
+
+        function drawRoundRect(x, y, w, h, r) {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.lineTo(x + w - r, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+          ctx.lineTo(x + w, y + h - r);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+          ctx.lineTo(x + r, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+          ctx.lineTo(x, y + r);
+          ctx.quadraticCurveTo(x, y, x + r, y);
+          ctx.closePath();
+        }
+
+        function drawCurvedEdge(s, t, color, lineWidth, alpha, withArrow, pulseT) {
+          var dx = t.x - s.x;
+          var dy = t.y - s.y;
+          var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          var bend = Math.min(64, dist * 0.16);
+          var mx = (s.x + t.x) / 2 - (dy / dist) * bend;
+          var my = (s.y + t.y) / 2 + (dx / dist) * bend;
+
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = lineWidth;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.quadraticCurveTo(mx, my, t.x, t.y);
+          ctx.stroke();
+
+          // Animated luminous light pulse gliding along the Bezier arc
+          if (pulseT !== null) {
+            var u = 1 - pulseT;
+            var px = u * u * s.x + 2 * u * pulseT * mx + pulseT * pulseT * t.x;
+            var py = u * u * s.y + 2 * u * pulseT * my + pulseT * pulseT * t.y;
+            ctx.globalAlpha = Math.min(1, alpha + 0.15);
+            ctx.fillStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(px, py, Math.max(2.3, 3.2 / Math.sqrt(camScale)), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+
+          if (withArrow && dist > t.r + 12) {
+            // Tangent near target end of quadratic curve
+            var tx = t.x - mx;
+            var ty = t.y - my;
+            var tLen = Math.sqrt(tx * tx + ty * ty) || 1;
+            var ex = t.x - (tx / tLen) * (t.r + 4);
+            var ey = t.y - (ty / tLen) * (t.r + 4);
+            var ang = Math.atan2(ty, tx);
+            var hl = Math.max(5.5, 7 / Math.sqrt(camScale));
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(ex, ey);
+            ctx.lineTo(ex - hl * Math.cos(ang - 0.42), ey - hl * Math.sin(ang - 0.42));
+            ctx.lineTo(ex - hl * Math.cos(ang + 0.42), ey - hl * Math.sin(ang + 0.42));
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        var animTime = 0;
+        function drawFrame(now) {
+          animTime = (now || 0) * 0.00055;
+          if (currentView !== "graph") {
+            requestAnimationFrame(drawFrame);
+            return;
+          }
+
+          stepPhysics();
+
+          // Smooth camera spring-lerp & pan inertia
+          if (!panning) {
+            targetCamX -= panVelX / camScale;
+            targetCamY -= panVelY / camScale;
+            panVelX *= 0.88;
+            panVelY *= 0.88;
+            if (Math.abs(panVelX) < 0.05) panVelX = 0;
+            if (Math.abs(panVelY) < 0.05) panVelY = 0;
+          }
+          camX += (targetCamX - camX) * 0.16;
+          camY += (targetCamY - camY) * 0.16;
+          camScale += (targetCamScale - camScale) * 0.16;
+
+          var isDark = document.documentElement.dataset.theme === "dark";
+          var textColor = isDark ? "#f0f6fc" : "#18181b";
+          var pillBg = isDark ? "rgba(13,17,23,0.78)" : "rgba(255,255,255,0.86)";
+          var pillBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(24,24,27,0.09)";
+          var outColor = isDark ? "#60a5fa" : "#2563eb";
+          var inColor = isDark ? "#fbbf24" : "#d97706";
+
+          var focusId = draggingNode ? draggingNode.id : (hoveredId || selectedId);
+          var outsSet = new Set();
+          var insSet = new Set();
+          if (focusId) {
+            (outMap.get(focusId) || []).forEach(function (n) { outsSet.add(n.id); });
+            (inMap.get(focusId) || []).forEach(function (n) { insSet.add(n.id); });
+          }
+
+          ctx.save();
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, width, height);
+
+          ctx.translate(width / 2, height / 2);
+          ctx.scale(camScale, camScale);
+          ctx.translate(-camX, -camY);
+
+          // 1. Draw 7 breathing translucent module islands (group hulls)
+          for (var sIdx = 0; sIdx < data.sections.length; sIdx++) {
+            var sec = data.sections[sIdx];
+            var pal = SECTION_PALETTE[sec.index];
+            var members = nodes.filter(function (n) { return n.section === sec.index; });
+            if (!members.length) continue;
+
+            var cx = 0, cy = 0;
+            members.forEach(function (n) { cx += n.x; cy += n.y; });
+            cx /= members.length;
+            cy /= members.length;
+
+            var maxR = 70;
+            members.forEach(function (n) {
+              var d = Math.sqrt((n.x - cx) * (n.x - cx) + (n.y - cy) * (n.y - cy)) + n.r + 36;
+              if (d > maxR) maxR = d;
+            });
+
+            var secDimmed = (activeSection !== 0 && activeSection !== sec.index) || (focusId && nodeMap.get(focusId).section !== sec.index);
+            var hullAlpha = secDimmed ? 0.28 : 1;
+
+            ctx.save();
+            ctx.globalAlpha = hullAlpha;
+
+            // Soft radial nebula fill
+            var grad = ctx.createRadialGradient(cx, cy, maxR * 0.12, cx, cy, maxR);
+            grad.addColorStop(0, "rgba(" + pal.rgb + "," + (isDark ? "0.14" : "0.09") + ")");
+            grad.addColorStop(0.75, "rgba(" + pal.rgb + "," + (isDark ? "0.06" : "0.04") + ")");
+            grad.addColorStop(1, "rgba(" + pal.rgb + ",0)");
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, maxR, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Delicate glass ring border
+            ctx.setLineDash([6, 6]);
+            ctx.strokeStyle = "rgba(" + pal.rgb + "," + (isDark ? "0.28" : "0.24") + ")";
+            ctx.lineWidth = 1.25 / Math.sqrt(camScale);
+            ctx.beginPath();
+            ctx.arc(cx, cy, maxR - 4, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Floating module title pill at top of island
+            var title = "0" + sec.index + "  " + sec.shortTitle;
+            var tSize = Math.max(11, Math.min(15, 13 / Math.sqrt(camScale)));
+            ctx.font = "700 " + tSize + 'px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+            var tw = ctx.measureText(title).width;
+            var px = cx - tw / 2 - 12;
+            var py = cy - maxR - tSize * 0.85;
+            drawRoundRect(px, py, tw + 24, tSize + 12, (tSize + 12) / 2);
+            ctx.fillStyle = isDark ? "rgba(22,27,34,0.88)" : "rgba(255,255,255,0.92)";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(" + pal.rgb + ",0.45)";
+            ctx.lineWidth = 1 / Math.sqrt(camScale);
+            ctx.stroke();
+
+            ctx.fillStyle = isDark ? pal.light : pal.hex;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(title, cx, py + (tSize + 12) / 2 + 0.5);
+            ctx.restore();
+          }
+
+          // 2. Draw curved edges (ambient first, then focused glowing arcs with flowing pulses)
+          var focusedEdges = [];
+          for (var i = 0; i < edges.length; i++) {
+            var e = edges[i];
+            var s = e.source;
+            var t = e.target;
+            if (activeSection !== 0 && s.section !== activeSection && t.section !== activeSection) continue;
+
+            if (focusId) {
+              var isOut = s.id === focusId && (edgeDir === "both" || edgeDir === "out");
+              var isIn = t.id === focusId && (edgeDir === "both" || edgeDir === "in");
+              if (isOut || isIn) {
+                focusedEdges.push({ e: e, isOut: isOut });
+              } else if (e.sameSec) {
+                drawCurvedEdge(s, t, "rgba(" + SECTION_PALETTE[s.section].rgb + ",1)", 0.8 / camScale, 0.035, false, null);
+              }
+            } else {
+              var qOk = !searchQuery || (s.searchText.indexOf(searchQuery) !== -1 && t.searchText.indexOf(searchQuery) !== -1);
+              var palS = SECTION_PALETTE[s.section];
+              var baseAlpha = e.sameSec ? (isDark ? 0.22 : 0.18) : (isDark ? 0.045 : 0.04);
+              if (!qOk) baseAlpha *= 0.2;
+              drawCurvedEdge(s, t, "rgba(" + palS.rgb + ",1)", (e.sameSec ? 1.15 : 0.8) / Math.sqrt(camScale), baseAlpha, false, null);
+            }
+          }
+
+          for (var f = 0; f < focusedEdges.length; f++) {
+            var fe = focusedEdges[f];
+            var pulsePos = (animTime + fe.e.phase) % 1;
+            drawCurvedEdge(
+              fe.e.source,
+              fe.e.target,
+              fe.isOut ? outColor : inColor,
+              (fe.isOut ? 2.2 : 1.8) / Math.sqrt(camScale),
+              fe.isOut ? 0.85 : 0.76,
+              true,
+              pulsePos
+            );
+          }
+
+          // 3. Draw tactile glassy orbs & pill-backed labels
+          for (var j = 0; j < nodes.length; j++) {
+            var n = nodes[j];
+            var palN = SECTION_PALETTE[n.section];
+            var secOk = activeSection === 0 || n.section === activeSection;
+            var qOk2 = !searchQuery || n.searchText.indexOf(searchQuery) !== -1;
+            var isFocus = n.id === focusId;
+            var isRelated = focusId && (
+              isFocus ||
+              ((edgeDir === "both" || edgeDir === "out") && outsSet.has(n.id)) ||
+              ((edgeDir === "both" || edgeDir === "in") && insSet.has(n.id))
+            );
+
+            var targetAlpha = 1;
+            if (!secOk || !qOk2) targetAlpha = 0.12;
+            else if (focusId && !isRelated) targetAlpha = 0.14;
+
+            var targetScale = (n === draggingNode) ? 1.24 : (isFocus ? 1.14 : 1.0);
+            n.visAlpha += (targetAlpha - n.visAlpha) * 0.2;
+            n.visScale += (targetScale - n.visScale) * 0.22;
+
+            var rr = n.r * n.visScale;
+
+            ctx.save();
+            ctx.globalAlpha = n.visAlpha;
+
+            // Expanding luminous ring when focused / dragged / selected
+            if (isFocus || n.id === selectedId) {
+              var pulseR = rr + 7 + Math.sin(animTime * 5) * 2.2;
+              ctx.beginPath();
+              ctx.arc(n.x, n.y, pulseR, 0, Math.PI * 2);
+              ctx.fillStyle = "rgba(" + palN.rgb + ",0.18)";
+              ctx.fill();
+              ctx.strokeStyle = "rgba(" + palN.rgb + ",0.65)";
+              ctx.lineWidth = 1.6 / Math.sqrt(camScale);
+              ctx.stroke();
+            }
+
+            // Glassy orb with radial specular highlight
+            ctx.shadowColor = "rgba(" + palN.rgb + "," + (isFocus ? "0.65" : "0.35") + ")";
+            ctx.shadowBlur = isFocus ? 22 : 10;
+            var orbGrad = ctx.createRadialGradient(n.x - rr * 0.32, n.y - rr * 0.32, rr * 0.1, n.x, n.y, rr);
+            orbGrad.addColorStop(0, palN.light);
+            orbGrad.addColorStop(0.55, palN.hex);
+            orbGrad.addColorStop(1, palN.hex);
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, rr, 0, Math.PI * 2);
+            ctx.fillStyle = orbGrad;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Crisp border rim
+            ctx.lineWidth = (isFocus || n.id === selectedId ? 2.4 : 1.4) / Math.sqrt(camScale);
+            ctx.strokeStyle = (isFocus || n.id === selectedId) ? (isDark ? "#ffffff" : "#18181b") : (isDark ? "rgba(13,17,23,0.85)" : "rgba(255,255,255,0.92)");
+            ctx.stroke();
+
+            // Pill-backed Chinese label
+            var showLabel =
+              isFocus ||
+              isRelated ||
+              (searchQuery && qOk2) ||
+              (activeSection !== 0 && secOk) ||
+              camScale >= 0.72 ||
+              n.inCount >= 10;
+
+            if (showLabel && n.visAlpha > 0.22) {
+              var lSize = Math.max(10.5, Math.min(13.5, 11.8 / Math.sqrt(camScale)));
+              ctx.font = (isFocus || n.inCount >= 20 ? "700 " : "500 ") + lSize + 'px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+              var lw = ctx.measureText(n.shortLabel).width;
+              var padX = 7;
+              var pillH = lSize + 7;
+              var pillX = n.x - lw / 2 - padX;
+              var pillY = n.y + rr + 5 / Math.sqrt(camScale);
+
+              drawRoundRect(pillX, pillY, lw + padX * 2, pillH, pillH / 2);
+              ctx.fillStyle = pillBg;
+              ctx.fill();
+              ctx.strokeStyle = isFocus ? palN.hex : pillBorder;
+              ctx.lineWidth = (isFocus ? 1.2 : 0.8) / Math.sqrt(camScale);
+              ctx.stroke();
+
+              ctx.fillStyle = textColor;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText(n.shortLabel, n.x, pillY + pillH / 2 + 0.5);
+            }
+
+            ctx.restore();
+          }
+
+          ctx.restore();
+          requestAnimationFrame(drawFrame);
+        }
+
+        function escapeText(str) {
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function renderInspector(nodeId) {
+          var n = nodeId ? nodeMap.get(nodeId) : null;
+          if (!n) {
+            focusPill.classList.remove("visible");
+            var hubChips = topHubs.map(function (h) {
+              return '<button type="button" class="node-chip" data-focus-id="' + escapeText(h.id) + '"><span class="legend-dot" style="display:inline-block;margin-right:5px;background:' + SECTION_PALETTE[h.section].hex + '"></span>' + escapeText(h.shortLabel) + "</button>";
+            }).join("");
+            inspectorEl.innerHTML =
+              '<div class="inspector-empty"><strong>AI Coding 模块知识图谱</strong>' +
+              "按 7 大章节聚为 7 座知识星团（" + nodes.length + " 词条 · " + edges.length + " 条关联），节点越大代表被其他词条引用的次数越多。<br /><br />" +
+              "直接<strong>拖拽任意节点</strong>感受弹性联动，滚轮缩放，或点击节点查看流光依赖路径与完整词条。" +
+              '<div class="inspector-hub-list">' + hubChips + "</div></div>";
+            return;
+          }
+
+          focusText.textContent = "已聚焦：" + n.shortLabel;
+          focusPill.classList.add("visible");
+
+          var sec = data.sections.find(function (s) { return s.index === n.section; });
+          var outs = outMap.get(n.id) || [];
+          var ins = inMap.get(n.id) || [];
+
+          var outChips = outs.length
+            ? outs.map(function (t) {
+                return '<button type="button" class="node-chip" data-focus-id="' + escapeText(t.id) + '">' + escapeText(t.shortLabel) + "</button>";
+              }).join("")
+            : '<span style="font-size:12px;color:var(--text-muted)">无主动引用</span>';
+
+          var inChips = ins.length
+            ? ins.map(function (t) {
+                return '<button type="button" class="node-chip" data-focus-id="' + escapeText(t.id) + '">' + escapeText(t.shortLabel) + "</button>";
+              }).join("")
+            : '<span style="font-size:12px;color:var(--text-muted)">暂无反向引用</span>';
+
+          var entryEl = document.getElementById(n.id);
+          var bodyEl = entryEl ? entryEl.querySelector(".entry-body") : null;
+          var bodyHtml = bodyEl ? bodyEl.innerHTML : "";
+
+          inspectorEl.innerHTML =
+            '<div class="inspector-top-row">' +
+              '<div class="inspector-badge"><span class="legend-dot" style="background:' + SECTION_PALETTE[n.section].hex + '"></span><span>Section ' + n.section + " · " + escapeText(sec ? sec.shortTitle : "") + "</span></div>" +
+              '<button type="button" class="inspector-close" data-clear-focus="1">清除选中</button>' +
+            "</div>" +
+            '<h3 class="inspector-title">' + escapeText(n.term) + "</h3>" +
+            '<p class="inspector-desc">' + escapeText(n.description) + "</p>" +
+            '<div class="inspector-stats">' +
+              '<span class="stat-pill">引用 ' + outs.length + " 个词条</span>" +
+              '<span class="stat-pill">被引用 ' + ins.length + " 次</span>" +
+            "</div>" +
+            '<div class="inspector-tabs" role="tablist">' +
+              '<button type="button" class="inspector-tab ' + (activeInspectorTab === "links" ? "active" : "") + '" data-itab="links">关联网络</button>' +
+              '<button type="button" class="inspector-tab ' + (activeInspectorTab === "article" ? "active" : "") + '" data-itab="article">完整词条</button>' +
+            "</div>" +
+            '<div class="inspector-pane ' + (activeInspectorTab === "links" ? "" : "hidden") + '" data-ipane="links">' +
+              '<div><div class="inspector-group-title"><span class="legend-dot" style="background:#3b82f6"></span>引用了（出度 · ' + outs.length + '）</div><div class="inspector-chips">' + outChips + "</div></div>" +
+              '<div><div class="inspector-group-title"><span class="legend-dot" style="background:#f59e0b"></span>被以下词条引用（入度 · ' + ins.length + '）</div><div class="inspector-chips">' + inChips + "</div></div>" +
+            "</div>" +
+            '<div class="inspector-pane ' + (activeInspectorTab === "article" ? "" : "hidden") + '" data-ipane="article">' +
+              '<div class="inspector-article">' + bodyHtml + "</div>" +
+            "</div>" +
+            '<button type="button" class="inspector-cta" data-read-id="' + escapeText(n.id) + '">在词典页打开 ↗</button>';
+          inspectorEl.scrollTop = 0;
+        }
+
+        inspectorEl.addEventListener("click", function (e) {
+          var clearBtn = e.target.closest("[data-clear-focus]");
+          if (clearBtn) { clearSelection(); return; }
+          var tabBtn = e.target.closest("[data-itab]");
+          if (tabBtn) {
+            activeInspectorTab = tabBtn.dataset.itab;
+            inspectorEl.querySelectorAll("[data-itab]").forEach(function (b) {
+              b.classList.toggle("active", b.dataset.itab === activeInspectorTab);
+            });
+            inspectorEl.querySelectorAll("[data-ipane]").forEach(function (p) {
+              p.classList.toggle("hidden", p.dataset.ipane !== activeInspectorTab);
+            });
+            return;
+          }
+          var focusBtn = e.target.closest("[data-focus-id]");
+          if (focusBtn) { focusNode(focusBtn.dataset.focusId); return; }
+          var innerLink = e.target.closest(".inspector-article a.term-link");
+          if (innerLink && innerLink.dataset.target) {
+            e.preventDefault();
+            focusNode(innerLink.dataset.target);
+            return;
+          }
+          var readBtn = e.target.closest("[data-read-id]");
+          if (readBtn) { setView("dict", readBtn.dataset.readId); }
+        });
+
+        focusClear.addEventListener("click", clearSelection);
+
+        function hitTest(sx, sy) {
+          var p = screenToWorld(sx, sy);
+          for (var i = nodes.length - 1; i >= 0; i--) {
+            var n = nodes[i];
+            var dx = p.x - n.x;
+            var dy = p.y - n.y;
+            var hitR = Math.max(n.r + 7 / camScale, 14 / camScale);
+            if (dx * dx + dy * dy <= hitR * hitR) return n;
+          }
+          return null;
+        }
+
+        // Tactile pointer interactions: smooth node drag with release momentum + inertial pan
+        var panning = false;
+        var moved = false;
+        var lastSX = 0;
+        var lastSY = 0;
+
+        canvas.addEventListener("pointerdown", function (e) {
+          var rect = canvas.getBoundingClientRect();
+          var sx = e.clientX - rect.left;
+          var sy = e.clientY - rect.top;
+          lastSX = sx;
+          lastSY = sy;
+          moved = false;
+          panVelX = 0;
+          panVelY = 0;
+          var hit = hitTest(sx, sy);
+          if (hit) {
+            draggingNode = hit;
+            var wp = screenToWorld(sx, sy);
+            dragTargetX = wp.x;
+            dragTargetY = wp.y;
+            dragVelX = 0;
+            dragVelY = 0;
+            simEnergy = Math.max(simEnergy, 0.55);
+            canvas.style.cursor = "grabbing";
+          } else {
+            panning = true;
+            canvas.style.cursor = "grabbing";
+          }
+          canvas.setPointerCapture(e.pointerId);
+        });
+
+        canvas.addEventListener("pointermove", function (e) {
+          var rect = canvas.getBoundingClientRect();
+          var sx = e.clientX - rect.left;
+          var sy = e.clientY - rect.top;
+          if (draggingNode) {
+            var distMove = Math.hypot(sx - lastSX, sy - lastSY);
+            if (distMove > 2) moved = true;
+            var wp = screenToWorld(sx, sy);
+            dragTargetX = wp.x;
+            dragTargetY = wp.y;
+            simEnergy = Math.max(simEnergy, 0.45);
+          } else if (panning) {
+            var dx = sx - lastSX;
+            var dy = sy - lastSY;
+            if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
+            targetCamX -= dx / camScale;
+            targetCamY -= dy / camScale;
+            camX = targetCamX;
+            camY = targetCamY;
+            panVelX = dx * 0.72;
+            panVelY = dy * 0.72;
+            lastSX = sx;
+            lastSY = sy;
+          } else {
+            var hit = hitTest(sx, sy);
+            hoveredId = hit ? hit.id : null;
+            canvas.style.cursor = hit ? "grab" : "default";
+          }
+        });
+
+        canvas.addEventListener("pointerup", function (e) {
+          var rect = canvas.getBoundingClientRect();
+          var sx = e.clientX - rect.left;
+          var sy = e.clientY - rect.top;
+          if (draggingNode) {
+            if (!moved) {
+              selectedId = draggingNode.id;
+              renderInspector(selectedId);
+            } else {
+              // Apply gentle release glide momentum
+              draggingNode.vx = dragVelX;
+              draggingNode.vy = dragVelY;
+              simEnergy = Math.max(simEnergy, 0.4);
+            }
+            draggingNode = null;
+          } else if (panning && !moved) {
+            var hit = hitTest(sx, sy);
+            selectedId = hit ? hit.id : null;
+            renderInspector(selectedId);
+          }
+          panning = false;
+          canvas.style.cursor = hitTest(sx, sy) ? "grab" : "default";
+        });
+
+        canvas.addEventListener("wheel", function (e) {
+          e.preventDefault();
+          var rect = canvas.getBoundingClientRect();
+          var sx = e.clientX - rect.left;
+          var sy = e.clientY - rect.top;
+          var before = screenToWorld(sx, sy);
+          var factor = Math.exp(-e.deltaY * 0.0014);
+          targetCamScale = Math.max(0.28, Math.min(3.2, targetCamScale * factor));
+          // Keep cursor anchor point stable while zooming
+          var nextW = {
+            x: (sx - width / 2) / targetCamScale + targetCamX,
+            y: (sy - height / 2) / targetCamScale + targetCamY
+          };
+          targetCamX += before.x - nextW.x;
+          targetCamY += before.y - nextW.y;
+        }, { passive: false });
+
+        document.getElementById("zoomInBtn").addEventListener("click", function () {
+          targetCamScale = Math.min(3.2, targetCamScale * 1.28);
+        });
+        document.getElementById("zoomOutBtn").addEventListener("click", function () {
+          targetCamScale = Math.max(0.28, targetCamScale * 0.78);
+        });
+        document.getElementById("resetGraphBtn").addEventListener("click", function () {
+          selectedId = null;
+          activeSection = 0;
+          edgeDir = "both";
+          Array.prototype.slice.call(legendEl.querySelectorAll(".legend-chip")).forEach(function (el) {
+            el.classList.toggle("active", el.dataset.sec === "0");
+            el.classList.remove("dimmed");
+          });
+          document.querySelectorAll(".graph-ctrl-btn[data-dir]").forEach(function (b) {
+            b.classList.toggle("active", b.dataset.dir === "both");
+          });
+          renderInspector(null);
+          fitView(false);
+        });
+
+        window.addEventListener("resize", function () {
+          if (currentView === "graph") resize();
+        });
+
+        function focusNode(id) {
+          var n = nodeMap.get(id);
+          if (!n) return;
+          selectedId = id;
+          targetCamX = n.x;
+          targetCamY = n.y;
+          targetCamScale = Math.max(targetCamScale, 1.15);
+          renderInspector(id);
+        }
+
+        function clearSelection() {
+          selectedId = null;
+          renderInspector(null);
+        }
+
+        renderInspector(null);
+        requestAnimationFrame(drawFrame);
+
+        return {
+          resize: resize,
+          draw: function () {},
+          focusNode: focusNode,
+          setSearchQuery: function (q) {
+            searchQuery = (q || "").trim().toLowerCase();
+            if (searchQuery) {
+              var match = nodes.find(function (n) { return n.searchText.indexOf(searchQuery) !== -1; });
+              if (match && !selectedId) {
+                targetCamX = match.x;
+                targetCamY = match.y;
+                targetCamScale = Math.max(targetCamScale, 1.05);
+              }
+            }
+          },
+          clearSelection: clearSelection
+        };
+      }
+
+      // Open graph directly if URL hash is #graph
+      if (window.location.hash === "#graph") {
+        setView("graph");
       }
     })();
   </script>
@@ -1554,11 +2978,18 @@ function main(): void {
     entry.backlinks = backlinksMap.get(entry.term) ?? [];
   }
 
+  const graphData = buildGraphData(sections, entries);
+  const graphJson = JSON.stringify(graphData);
+
   mkdirSync(DIST_DIR, { recursive: true });
-  writeFileSync(join(DIST_DIR, "index.html"), buildHtml(sections, entries));
+  writeFileSync(
+    join(DIST_DIR, "index.html"),
+    buildHtml(sections, entries, graphJson)
+  );
+  writeFileSync(join(DIST_DIR, "graph.json"), JSON.stringify(graphData, null, 2));
   writeFileSync(join(DIST_DIR, ".nojekyll"), "");
   console.log(
-    `Generated dist/index.html (${entries.length} entries across ${sections.length} sections).`
+    `Generated dist/index.html & dist/graph.json (${entries.length} nodes, ${graphData.edges.length} edges across ${sections.length} sections).`
   );
 }
 
