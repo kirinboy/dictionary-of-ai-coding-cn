@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
 const CURRICULUM = join(HERE, "Curriculum.md");
+const RELATIONS_FILE = join(HERE, "map-relations.json");
 const DICT_DIR = join(ROOT, "dictionary");
 const DIST_DIR = join(ROOT, "dist");
 
@@ -381,6 +382,49 @@ function stripMarkdownToPlainText(md: string): string {
     .trim();
 }
 
+type MapRelations = {
+  labeledRelations: Record<string, { verb: string; desc: string }>;
+  confusable: Record<string, Array<{ id: string; note: string }>>;
+};
+
+function loadMapRelations(
+  entries: Entry[],
+  edges: Array<{ source: string; target: string }>
+): MapRelations {
+  const raw = JSON.parse(readFileSync(RELATIONS_FILE, "utf8")) as MapRelations;
+  const validSlugs = new Set(entries.map((e) => e.slug));
+  const edgeSet = new Set(edges.map((e) => `${e.source}->${e.target}`));
+
+  for (const key of Object.keys(raw.labeledRelations)) {
+    const parts = key.split("->");
+    const src = parts[0];
+    const dst = parts[1];
+    if (!src || !dst || !validSlugs.has(src) || !validSlugs.has(dst)) {
+      fail(`map-relations.json: invalid labeledRelations key "${key}"`);
+    }
+    if (!edgeSet.has(key)) {
+      fail(
+        `map-relations.json: labeledRelations "${key}" does not match an actual link in dictionary/*.md`
+      );
+    }
+  }
+
+  for (const [slug, items] of Object.entries(raw.confusable)) {
+    if (!validSlugs.has(slug)) {
+      fail(`map-relations.json: unknown confusable key "${slug}"`);
+    }
+    for (const item of items) {
+      if (!validSlugs.has(item.id)) {
+        fail(
+          `map-relations.json: unknown confusable target "${item.id}" under "${slug}"`
+        );
+      }
+    }
+  }
+
+  return raw;
+}
+
 function buildGraphData(sections: Section[], entries: Entry[]) {
   const slugByTerm = new Map(entries.map((e) => [e.term, e.slug]));
   const nodes = entries.map((e) => ({
@@ -408,7 +452,14 @@ function buildGraphData(sections: Section[], entries: Entry[]) {
     shortTitle: s.shortTitle.replace(/（.+）$/, ""),
     count: s.terms.length,
   }));
-  return { sections: sectionMeta, nodes, edges };
+  const relations = loadMapRelations(entries, edges);
+  return {
+    sections: sectionMeta,
+    nodes,
+    edges,
+    labeledRelations: relations.labeledRelations,
+    confusable: relations.confusable,
+  };
 }
 
 function buildHtml(
@@ -1305,9 +1356,556 @@ function buildHtml(
       font-weight: 600;
     }
 
+    body[data-view="map"] .layout { display: none; }
+    body[data-view="map"] .menu-btn { display: none !important; }
+    body[data-view="map"] .graph-view { display: none; }
+    body[data-view="map"] .map-view { display: flex; }
+
     body[data-view="graph"] .layout { display: none; }
     body[data-view="graph"] .menu-btn { display: none !important; }
+    body[data-view="graph"] .map-view { display: none; }
     body[data-view="graph"] .graph-view { display: flex; }
+
+    body[data-view="dict"] .map-view { display: none; }
+    body[data-view="dict"] .graph-view { display: none; }
+
+    /* Editorial Knowledge Map View (Prototype-inspired) */
+    .map-view {
+      display: none;
+      flex-direction: column;
+      height: calc(100vh - var(--header-h));
+      background: #f6f5ef;
+      color: #1f2421;
+      overflow: hidden;
+    }
+
+    [data-theme="dark"] .map-view {
+      background: #101413;
+      color: #e6ebe8;
+    }
+
+    .map-workspace {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      gap: 16px;
+      padding: 16px 20px 12px;
+      overflow: hidden;
+    }
+
+    .map-canvas-shell {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+      background: #fcfbf8;
+      border: 1px solid #e3e1d8;
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    [data-theme="dark"] .map-canvas-shell {
+      background: #141918;
+      border-color: #27302d;
+    }
+
+    .map-viewport {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+      padding: 18px 20px 56px;
+    }
+
+    .map-board {
+      position: relative;
+      transform-origin: top left;
+      transition: transform 0.18s ease;
+      min-width: 860px;
+    }
+
+    .map-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(260px, 1fr));
+      gap: 16px;
+      align-items: start;
+      position: relative;
+      z-index: 2;
+    }
+
+    .map-col {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .map-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 4;
+      overflow: visible;
+    }
+
+    .map-zone {
+      border-radius: 22px;
+      padding: 16px 16px 18px;
+      transition: opacity 0.2s;
+    }
+
+    .map-zone[data-sec="1"] { background: #e9f2e6; }
+    .map-zone[data-sec="2"] { background: #e6f0f8; }
+    .map-zone[data-sec="3"] { background: #ece8f5; }
+    .map-zone[data-sec="4"] { background: #f8ece6; }
+    .map-zone[data-sec="5"] { background: #f8f0e2; }
+    .map-zone[data-sec="6"] { background: #ede9f5; }
+    .map-zone[data-sec="7"] { background: #e7f2e7; }
+
+    [data-theme="dark"] .map-zone[data-sec="1"] { background: rgba(46, 107, 72, 0.18); }
+    [data-theme="dark"] .map-zone[data-sec="2"] { background: rgba(59, 130, 196, 0.18); }
+    [data-theme="dark"] .map-zone[data-sec="3"] { background: rgba(111, 92, 195, 0.18); }
+    [data-theme="dark"] .map-zone[data-sec="4"] { background: rgba(217, 107, 67, 0.18); }
+    [data-theme="dark"] .map-zone[data-sec="5"] { background: rgba(217, 146, 38, 0.17); }
+    [data-theme="dark"] .map-zone[data-sec="6"] { background: rgba(124, 92, 196, 0.18); }
+    [data-theme="dark"] .map-zone[data-sec="7"] { background: rgba(60, 141, 87, 0.18); }
+
+    .map-zone-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+
+    .map-zone-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #1f2421;
+    }
+
+    [data-theme="dark"] .map-zone-title { color: #eef3f0; }
+
+    .map-zone-toggle {
+      border: none;
+      background: rgba(255, 255, 255, 0.62);
+      color: #4b5563;
+      font-size: 11.5px;
+      font-family: inherit;
+      padding: 3px 9px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .map-zone-toggle:hover { background: rgba(255, 255, 255, 0.95); color: #111827; }
+    [data-theme="dark"] .map-zone-toggle { background: rgba(255, 255, 255, 0.08); color: #cbd5e1; }
+    [data-theme="dark"] .map-zone-toggle:hover { background: rgba(255, 255, 255, 0.16); color: #ffffff; }
+
+    .map-zone-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .map-card {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      padding: 10px 16px;
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1.5px solid rgba(20, 24, 22, 0.1);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      cursor: pointer;
+      font-family: inherit;
+      color: inherit;
+      transition: border-color 0.15s, box-shadow 0.18s, transform 0.12s, opacity 0.18s;
+    }
+
+    [data-theme="dark"] .map-card {
+      background: rgba(24, 30, 28, 0.92);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .map-card:hover {
+      border-color: #2e6b48;
+      transform: translateY(-1px);
+    }
+
+    .map-card.selected {
+      border: 2px solid #2e6b48;
+      box-shadow: 0 0 0 4px rgba(177, 223, 128, 0.5), 0 4px 12px rgba(46, 107, 72, 0.14);
+      background: #ffffff;
+      z-index: 3;
+    }
+
+    [data-theme="dark"] .map-card.selected {
+      border-color: #5cc487;
+      box-shadow: 0 0 0 4px rgba(92, 196, 135, 0.25);
+      background: #1b2421;
+    }
+
+    .map-card.related {
+      border-color: rgba(46, 107, 72, 0.55);
+    }
+
+    .map-card.dimmed {
+      opacity: 0.42;
+    }
+
+    .map-card.hidden { display: none; }
+
+    .map-card-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .map-card-content {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .map-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: #181c1a;
+    }
+
+    [data-theme="dark"] .map-card-title { color: #f1f5f3; }
+
+    .map-card-sub {
+      font-size: 11.5px;
+      color: #5c635f;
+      line-height: 1.4;
+      margin-top: 2px;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    [data-theme="dark"] .map-card-sub { color: #9aa5a0; }
+
+    .map-footer-bar {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      pointer-events: none;
+      z-index: 6;
+    }
+
+    .map-legend-inline {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(252, 251, 248, 0.92);
+      border: 1px solid #e3e1d8;
+      backdrop-filter: blur(8px);
+      font-size: 12px;
+      color: #525955;
+    }
+
+    [data-theme="dark"] .map-legend-inline {
+      background: rgba(20, 25, 24, 0.9);
+      border-color: #27302d;
+      color: #a6b2ac;
+    }
+
+    .map-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .map-line-swatch {
+      width: 18px;
+      height: 2px;
+      border-radius: 2px;
+    }
+
+    .map-tools-right {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .map-mode-btn {
+      border: 1px solid #dcdad0;
+      background: rgba(255, 255, 255, 0.94);
+      color: #374151;
+      font-size: 12px;
+      font-family: inherit;
+      padding: 5px 11px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .map-mode-btn:hover { border-color: #2e6b48; color: #2e6b48; }
+    .map-mode-btn.active { background: #2e6b48; border-color: #2e6b48; color: #ffffff; }
+    [data-theme="dark"] .map-mode-btn { background: #1a211f; border-color: #2d3834; color: #d1d8d4; }
+    [data-theme="dark"] .map-mode-btn.active { background: #2e6b48; border-color: #2e6b48; color: #ffffff; }
+
+    .map-zoom-pill {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid #dcdad0;
+      border-radius: 999px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+
+    [data-theme="dark"] .map-zoom-pill { background: #1a211f; border-color: #2d3834; }
+
+    .map-zoom-btn {
+      border: none;
+      background: transparent;
+      color: inherit;
+      padding: 5px 9px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .map-zoom-btn:hover { background: rgba(0, 0, 0, 0.05); }
+    .map-zoom-val { padding: 0 4px; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); }
+
+    /* Right Editorial Detail Card */
+    .map-detail {
+      width: 340px;
+      flex-shrink: 0;
+      background: #fcfbf8;
+      border: 1px solid #e3e1d8;
+      border-radius: 16px;
+      padding: 22px 22px 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    [data-theme="dark"] .map-detail {
+      background: #141918;
+      border-color: #27302d;
+    }
+
+    .map-crumb {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #2e6b48;
+    }
+
+    [data-theme="dark"] .map-crumb { color: #67d195; }
+
+    .map-detail-en {
+      margin: 4px 0 0;
+      font-family: Georgia, "Times New Roman", "Songti SC", serif;
+      font-size: 32px;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+
+    .map-detail-zh {
+      margin: 4px 0 0;
+      font-size: 17px;
+      font-weight: 700;
+      color: #272d29;
+    }
+
+    [data-theme="dark"] .map-detail-zh { color: #dbe3de; }
+
+    .map-detail-desc {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #474f4a;
+    }
+
+    [data-theme="dark"] .map-detail-desc { color: #b1bbb5; }
+
+    .map-detail-sec-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0 0 10px;
+      color: #1f2421;
+    }
+
+    [data-theme="dark"] .map-detail-sec-title { color: #eef3f0; }
+
+    .map-rel-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .map-rel-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      color: #363d39;
+    }
+
+    [data-theme="dark"] .map-rel-row { color: #c7d1cb; }
+
+    .map-rel-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 7px;
+      background: #e9f2e6;
+      color: #1f3c2a;
+      font-size: 12.5px;
+      font-weight: 600;
+      border: 1px solid rgba(46, 107, 72, 0.18);
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background 0.12s, border-color 0.12s;
+    }
+
+    .map-rel-pill:hover { background: #d6ebd0; border-color: #2e6b48; }
+    [data-theme="dark"] .map-rel-pill { background: rgba(46, 107, 72, 0.28); color: #a8e6c1; border-color: rgba(103, 209, 149, 0.25); }
+
+    .map-rel-pill.muted {
+      background: #eeede8;
+      color: #2f3532;
+      border-color: rgba(0, 0, 0, 0.08);
+    }
+
+    [data-theme="dark"] .map-rel-pill.muted { background: #212826; color: #d3dcd7; border-color: rgba(255, 255, 255, 0.08); }
+
+    .map-detail-actions {
+      margin-top: auto;
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .map-read-btn {
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1.5px solid #2e6b48;
+      background: #ffffff;
+      color: #2e6b48;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .map-read-btn:hover { background: #2e6b48; color: #ffffff; }
+    [data-theme="dark"] .map-read-btn { background: transparent; color: #67d195; border-color: #5cc487; }
+    [data-theme="dark"] .map-read-btn:hover { background: #2e6b48; color: #ffffff; }
+
+    .map-graph-btn {
+      width: 100%;
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1px solid #dcdad0;
+      background: transparent;
+      color: #5a635e;
+      font-size: 12.5px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .map-graph-btn:hover { border-color: #2e6b48; color: #2e6b48; }
+    [data-theme="dark"] .map-graph-btn { border-color: #2c3632; color: #9ea9a3; }
+
+    /* Bottom Recommended Reading Bar */
+    .map-bottom-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 20px;
+      background: #fcfbf8;
+      border-top: 1px solid #e3e1d8;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+
+    [data-theme="dark"] .map-bottom-bar {
+      background: #141918;
+      border-top-color: #27302d;
+    }
+
+    .map-path-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .map-path-label {
+      font-weight: 700;
+      color: #2a302c;
+      margin-right: 4px;
+    }
+
+    [data-theme="dark"] .map-path-label { color: #dbe3de; }
+
+    .map-path-step {
+      padding: 4px 12px;
+      border-radius: 8px;
+      border: 1px solid #dcdad0;
+      background: #eff2eb;
+      color: #2c3530;
+      font-size: 12.5px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s;
+    }
+
+    .map-path-step:hover { border-color: #2e6b48; }
+    .map-path-step.active {
+      border: 1.5px solid #2e6b48;
+      background: #ffffff;
+      color: #2e6b48;
+    }
+
+    [data-theme="dark"] .map-path-step { background: #1e2623; border-color: #2f3a36; color: #cdd6d1; }
+    [data-theme="dark"] .map-path-step.active { background: #192920; border-color: #5cc487; color: #67d195; }
+
+    .map-path-arrow { color: #8c948f; font-size: 12px; }
+    .map-bottom-note { font-size: 12px; color: #7c847f; white-space: nowrap; }
+
+    .view-tab.active.map-accent {
+      background: #2e6b48;
+      color: #ffffff;
+    }
+
+    @media (max-width: 1080px) {
+      .map-workspace { flex-direction: column; overflow-y: auto; }
+      .map-canvas-shell { min-height: 480px; }
+      .map-detail { width: 100%; overflow: visible; }
+      .map-bottom-note { display: none; }
+    }
 
     /* Graph View */
     .graph-view {
@@ -1673,7 +2271,7 @@ function buildHtml(
     }
   </style>
 </head>
-<body>
+<body data-view="map">
   <header class="topbar">
     <button class="menu-btn" id="menuBtn" type="button" aria-label="打开目录">☰</button>
     <a class="brand" href="#" id="brandLink">
@@ -1681,12 +2279,13 @@ function buildHtml(
       <span class="brand-badge">${entries.length} 词</span>
     </a>
     <div class="view-switch" role="tablist" aria-label="视图切换">
-      <button class="view-tab active" id="tabDict" type="button" role="tab" aria-selected="true">词典</button>
+      <button class="view-tab active map-accent" id="tabMap" type="button" role="tab" aria-selected="true">知识地图</button>
       <button class="view-tab" id="tabGraph" type="button" role="tab" aria-selected="false">知识图谱</button>
+      <button class="view-tab" id="tabDict" type="button" role="tab" aria-selected="false">词条列表</button>
     </div>
     <div class="search-wrap" id="searchWrap">
       <span class="search-icon">⌕</span>
-      <input class="search-input" id="searchInput" type="search" placeholder="搜索中文词条、英文原词、别名或正文…" autocomplete="off" />
+      <input class="search-input" id="searchInput" type="search" placeholder="搜索中文、英文或别名…" autocomplete="off" />
       <span class="search-kbd">/</span>
       <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索">×</button>
     </div>
@@ -1697,6 +2296,41 @@ function buildHtml(
   </header>
 
   <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+  <section class="map-view" id="mapView" aria-label="词典知识地图">
+    <div class="map-workspace">
+      <div class="map-canvas-shell">
+        <div class="map-viewport" id="mapViewport">
+          <div class="map-board" id="mapBoard">
+            <svg class="map-svg" id="mapSvg" aria-hidden="true"></svg>
+            <div class="map-grid" id="mapGrid"></div>
+          </div>
+        </div>
+        <div class="map-footer-bar">
+          <div class="map-legend-inline">
+            <span class="map-legend-item"><span class="map-line-swatch" style="background:#9ca3af"></span>引用关联</span>
+            <span class="map-legend-item"><span class="map-line-swatch" style="background:#2e6b48"></span>已标注关系</span>
+          </div>
+          <div class="map-tools-right">
+            <button class="map-mode-btn" id="mapExpandAllBtn" type="button">展开全部 72 词条</button>
+            <div class="map-zoom-pill">
+              <button class="map-zoom-btn" id="mapZoomOut" type="button" title="缩小">−</button>
+              <span class="map-zoom-val" id="mapZoomVal">100%</span>
+              <button class="map-zoom-btn" id="mapZoomIn" type="button" title="放大">＋</button>
+              <button class="map-zoom-btn" id="mapZoomReset" type="button" title="重置缩放">⛶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="map-detail" id="mapDetail" aria-label="词条速览"></aside>
+    </div>
+    <div class="map-bottom-bar">
+      <div class="map-path-wrap" id="mapPathWrap">
+        <span class="map-path-label">推荐阅读顺序</span>
+      </div>
+      <span class="map-bottom-note" id="mapBottomNote">7 个主题 · 72 个词条 · 核心概念速览</span>
+    </div>
+  </section>
 
   <section class="graph-view" id="graphView" aria-label="词典知识图谱">
     <div class="graph-stage">
@@ -1773,6 +2407,7 @@ function buildHtml(
       var sidebar = document.getElementById("sidebar");
       var backdrop = document.getElementById("drawerBackdrop");
       var toast = document.getElementById("toast");
+      var tabMap = document.getElementById("tabMap");
       var tabDict = document.getElementById("tabDict");
       var tabGraph = document.getElementById("tabGraph");
       var brandLink = document.getElementById("brandLink");
@@ -1782,7 +2417,8 @@ function buildHtml(
       var navTerms = Array.prototype.slice.call(document.querySelectorAll(".nav-term"));
       var navSections = Array.prototype.slice.call(document.querySelectorAll(".nav-section"));
 
-      var currentView = "dict";
+      var currentView = "map";
+      var mapApi = null;
       var graphApi = null;
 
       function showToast(msg) {
@@ -1797,12 +2433,23 @@ function buildHtml(
       function setView(view, focusSlug) {
         currentView = view;
         document.body.dataset.view = view;
+        tabMap.classList.toggle("active", view === "map");
+        tabMap.classList.toggle("map-accent", view === "map");
+        tabMap.setAttribute("aria-selected", view === "map" ? "true" : "false");
         tabDict.classList.toggle("active", view === "dict");
         tabDict.setAttribute("aria-selected", view === "dict" ? "true" : "false");
         tabGraph.classList.toggle("active", view === "graph");
         tabGraph.setAttribute("aria-selected", view === "graph" ? "true" : "false");
         closeDrawer();
-        if (view === "graph") {
+        if (view === "map") {
+          if (!mapApi) mapApi = initMap();
+          mapApi.setSearchQuery(searchInput.value);
+          if (focusSlug) mapApi.selectNode(focusSlug);
+          else mapApi.redrawArrows();
+          if (window.location.hash && window.location.hash !== "#map") {
+            history.replaceState(null, "", "#map");
+          }
+        } else if (view === "graph") {
           if (!graphApi) graphApi = initGraph();
           graphApi.resize();
           graphApi.setSearchQuery(searchInput.value);
@@ -1820,19 +2467,17 @@ function buildHtml(
             target.scrollIntoView({ behavior: "smooth", block: "start" });
             setTimeout(function () { flashTarget(focusSlug); }, 120);
           }
-        } else if (window.location.hash === "#graph") {
+        } else if (window.location.hash === "#graph" || window.location.hash === "#map") {
           history.replaceState(null, "", window.location.pathname);
         }
       }
 
+      tabMap.addEventListener("click", function () { setView("map"); });
       tabDict.addEventListener("click", function () { setView("dict"); });
       tabGraph.addEventListener("click", function () { setView("graph"); });
       brandLink.addEventListener("click", function (e) {
-        if (currentView === "graph") {
-          e.preventDefault();
-          setView("dict");
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }
+        e.preventDefault();
+        setView("map");
       });
 
       // Theme toggle
@@ -1847,6 +2492,7 @@ function buildHtml(
         localStorage.setItem("theme", next);
         updateThemeLabel();
         if (graphApi) graphApi.draw();
+        if (mapApi) mapApi.redrawArrows();
       });
 
       // Mobile drawer
@@ -1865,6 +2511,7 @@ function buildHtml(
         var q = rawQuery.trim().toLowerCase();
         searchWrap.classList.toggle("has-query", q.length > 0);
 
+        if (mapApi) mapApi.setSearchQuery(rawQuery);
         if (graphApi) graphApi.setSearchQuery(rawQuery);
 
         var tokens = q ? q.split(/\\s+/).filter(Boolean) : [];
@@ -2893,9 +3540,536 @@ function buildHtml(
         };
       }
 
-      // Open graph directly if URL hash is #graph
-      if (window.location.hash === "#graph") {
+      // Editorial Knowledge Map Engine (Prototype-inspired 3-col Bento + Labeled SVG Curved Arrows)
+      function initMap() {
+        var raw = document.getElementById("graph-data").textContent;
+        var data = JSON.parse(raw);
+        var mapGrid = document.getElementById("mapGrid");
+        var mapSvg = document.getElementById("mapSvg");
+        var mapBoard = document.getElementById("mapBoard");
+        var mapDetail = document.getElementById("mapDetail");
+        var mapPathWrap = document.getElementById("mapPathWrap");
+        var mapExpandAllBtn = document.getElementById("mapExpandAllBtn");
+        var mapZoomVal = document.getElementById("mapZoomVal");
+        var mapBottomNote = document.getElementById("mapBottomNote");
+
+        var ZONE_DOTS = {
+          1: "#2f7d4d",
+          2: "#3b82c4",
+          3: "#6f5cc3",
+          4: "#d96b43",
+          5: "#d99226",
+          6: "#7c5cc4",
+          7: "#3c8d57"
+        };
+
+        var ZONE_SHORT_TITLES = {
+          1: "01 模型",
+          2: "02 会话与上下文",
+          3: "03 工具与环境",
+          4: "04 失效模式",
+          5: "05 交接",
+          6: "06 记忆与引导",
+          7: "07 工作模式"
+        };
+
+        // Prototype curated core terms per section (22 core terms visible cleanly by default)
+        var CORE_IDS = new Set([
+          "模型model", "token词元", "推理inference", "harness驾驭框架",
+          "agent智能体", "上下文context", "会话session", "上下文窗口context-window",
+          "工具tool", "mcp模型上下文协议", "沙箱sandbox",
+          "幻觉hallucination", "注意力退化attention-degradation",
+          "spec规格说明书", "ticket任务单", "上下文压缩compaction",
+          "agentsmd", "skill技能", "subagent子智能体",
+          "人在回路human-in-the-loop", "自动化检查automated-check", "软件工厂software-factory"
+        ]);
+
+        // Curated labeled relationships & confusable comparisons loaded from internal/map-relations.json
+        var LABELED_REL = data.labeledRelations || {};
+        var CONFUSABLE = data.confusable || {};
+
+        var READING_PATH = [
+          { id: "模型model", label: "Model" },
+          { id: "harness驾驭框架", label: "Harness" },
+          { id: "agent智能体", label: "Agent" },
+          { id: "工具tool", label: "Tool" },
+          { id: "上下文窗口context-window", label: "Context window" },
+          { id: "会话session", label: "Session" },
+          { id: "上下文压缩compaction", label: "Compaction" },
+          { id: "skill技能", label: "Skill" },
+          { id: "人在回路human-in-the-loop", label: "HITL" }
+        ];
+
+        var nodeMap = new Map();
+        var outMap = new Map();
+        var inMap = new Map();
+        var expandedZones = new Set();
+        var expandAll = false;
+        var mapZoom = 1;
+        var mapQuery = "";
+        var selectedId = "harness驾驭框架";
+
+        data.nodes.forEach(function (n) {
+          var m = n.term.match(/^(.+?)（(.+?)）$/);
+          var enTitle = n.term;
+          var zhTitle = "";
+          if (m) {
+            if (/^[A-Za-z0-9]/.test(m[1])) {
+              enTitle = m[1];
+              zhTitle = m[2];
+            } else {
+              zhTitle = m[1];
+              enTitle = m[2];
+            }
+          }
+          var obj = {
+            id: n.id,
+            term: n.term,
+            shortLabel: n.shortLabel,
+            enTitle: enTitle,
+            zhTitle: zhTitle,
+            cardTitle: zhTitle ? (enTitle + " " + zhTitle) : enTitle,
+            section: n.section,
+            description: n.description,
+            inCount: n.inCount,
+            outCount: n.outCount,
+            searchText: (n.term + " " + n.description + " " + (n.aliases || []).join(" ")).toLowerCase()
+          };
+          nodeMap.set(obj.id, obj);
+          outMap.set(obj.id, []);
+          inMap.set(obj.id, []);
+        });
+
+        data.edges.forEach(function (e) {
+          var s = nodeMap.get(e.source);
+          var t = nodeMap.get(e.target);
+          if (s && t) {
+            outMap.get(s.id).push(t);
+            inMap.get(t.id).push(s);
+          }
+        });
+
+        if (!nodeMap.has(selectedId) && data.nodes.length > 0) {
+          selectedId = data.nodes[0].id;
+        }
+
+        function escapeText(str) {
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        // Build 3-column Bento matching prototype: Col1 [1,4,6], Col2 [2,5], Col3 [3,7]
+        var COLUMNS = [[1, 4, 6], [2, 5], [3, 7]];
+        var cardEls = new Map();
+        var zoneToggleBtns = new Map();
+
+        COLUMNS.forEach(function (secList) {
+          var col = document.createElement("div");
+          col.className = "map-col";
+          secList.forEach(function (secId) {
+            var zoneNodes = data.nodes
+              .map(function (n) { return nodeMap.get(n.id); })
+              .filter(function (n) { return n && n.section === secId; });
+
+            var zone = document.createElement("div");
+            zone.className = "map-zone";
+            zone.dataset.sec = String(secId);
+
+            var head = document.createElement("div");
+            head.className = "map-zone-head";
+            head.innerHTML = '<span class="map-zone-title">' + escapeText(ZONE_SHORT_TITLES[secId] || ("0" + secId)) + "</span>";
+
+            var toggleBtn = document.createElement("button");
+            toggleBtn.type = "button";
+            toggleBtn.className = "map-zone-toggle";
+            toggleBtn.dataset.sec = String(secId);
+            head.appendChild(toggleBtn);
+            zoneToggleBtns.set(secId, toggleBtn);
+
+            var list = document.createElement("div");
+            list.className = "map-zone-cards";
+
+            zoneNodes.forEach(function (nd) {
+              var card = document.createElement("button");
+              card.type = "button";
+              card.className = "map-card";
+              card.dataset.id = nd.id;
+              card.innerHTML =
+                '<span class="map-card-dot" style="background:' + ZONE_DOTS[secId] + '"></span>' +
+                '<div class="map-card-content">' +
+                  '<div class="map-card-title">' + escapeText(nd.cardTitle) + "</div>" +
+                  '<div class="map-card-sub">' + escapeText(nd.description) + "</div>" +
+                "</div>";
+              card.addEventListener("click", function () {
+                selectNode(nd.id);
+              });
+              list.appendChild(card);
+              cardEls.set(nd.id, card);
+            });
+
+            zone.appendChild(head);
+            zone.appendChild(list);
+            col.appendChild(zone);
+          });
+          mapGrid.appendChild(col);
+        });
+
+        // Build bottom reading path
+        READING_PATH.forEach(function (step, idx) {
+          if (idx > 0) {
+            var arr = document.createElement("span");
+            arr.className = "map-path-arrow";
+            arr.textContent = "→";
+            mapPathWrap.appendChild(arr);
+          }
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "map-path-step";
+          btn.dataset.id = step.id;
+          btn.textContent = step.label;
+          btn.addEventListener("click", function () {
+            selectNode(step.id);
+          });
+          mapPathWrap.appendChild(btn);
+        });
+
+        function isCardVisible(nd) {
+          if (mapQuery) {
+            return nd.searchText.indexOf(mapQuery) !== -1;
+          }
+          if (expandAll || expandedZones.has(nd.section)) return true;
+          return CORE_IDS.has(nd.id) || nd.id === selectedId;
+        }
+
+        function updateVisibilityAndHighlight() {
+          var outsSet = new Set((outMap.get(selectedId) || []).map(function (n) { return n.id; }));
+          var insSet = new Set((inMap.get(selectedId) || []).map(function (n) { return n.id; }));
+          var visibleCount = 0;
+
+          nodeMap.forEach(function (nd) {
+            var el = cardEls.get(nd.id);
+            if (!el) return;
+            var vis = isCardVisible(nd);
+            el.classList.toggle("hidden", !vis);
+            if (vis) visibleCount++;
+            var isSel = nd.id === selectedId;
+            var isRel = outsSet.has(nd.id) || insSet.has(nd.id);
+            el.classList.toggle("selected", isSel);
+            el.classList.toggle("related", !isSel && isRel);
+            el.classList.toggle("dimmed", !isSel && !isRel && !mapQuery);
+          });
+
+          zoneToggleBtns.forEach(function (btn, secId) {
+            var total = data.nodes.filter(function (n) { return n.section === secId; }).length;
+            var isExp = expandAll || expandedZones.has(secId);
+            btn.textContent = isExp ? "收起" : ("全部 " + total);
+          });
+
+          mapExpandAllBtn.classList.toggle("active", expandAll);
+          mapExpandAllBtn.textContent = expandAll ? "切换为精简核心视图" : "展开全部 72 词条";
+          mapBottomNote.textContent = "7 个主题 · 当前展示 " + visibleCount + " / " + data.nodes.length + " 个词条";
+
+          mapPathWrap.querySelectorAll(".map-path-step").forEach(function (btn) {
+            btn.classList.toggle("active", btn.dataset.id === selectedId);
+          });
+
+          requestAnimationFrame(drawArrows);
+        }
+
+        function drawArrows() {
+          while (mapSvg.firstChild) mapSvg.removeChild(mapSvg.firstChild);
+          var srcEl = cardEls.get(selectedId);
+          if (!srcEl || srcEl.classList.contains("hidden")) return;
+
+          var boardRect = mapBoard.getBoundingClientRect();
+          if (boardRect.width === 0) return;
+
+          var isDark = document.documentElement.dataset.theme === "dark";
+          var green = isDark ? "#5cc487" : "#2e6b48";
+          var gray = isDark ? "#64748b" : "#9ca3af";
+          var labelBg = isDark ? "#141918" : "#ffffff";
+
+          var ns = "http://www.w3.org/2000/svg";
+          var defs = document.createElementNS(ns, "defs");
+
+          function addMarker(id, color) {
+            var marker = document.createElementNS(ns, "marker");
+            marker.setAttribute("id", id);
+            marker.setAttribute("viewBox", "0 0 10 10");
+            marker.setAttribute("refX", "8");
+            marker.setAttribute("refY", "5");
+            marker.setAttribute("markerWidth", "6");
+            marker.setAttribute("markerHeight", "6");
+            marker.setAttribute("orient", "auto-start-reverse");
+            var path = document.createElementNS(ns, "path");
+            path.setAttribute("d", "M 1 1.5 L 8.5 5 L 1 8.5 z");
+            path.setAttribute("fill", color);
+            marker.appendChild(path);
+            defs.appendChild(marker);
+          }
+          addMarker("arrowGreen", green);
+          addMarker("arrowGray", gray);
+          mapSvg.appendChild(defs);
+
+          function getBox(el) {
+            var r = el.getBoundingClientRect();
+            return {
+              left: (r.left - boardRect.left) / mapZoom,
+              right: (r.right - boardRect.left) / mapZoom,
+              top: (r.top - boardRect.top) / mapZoom,
+              bottom: (r.bottom - boardRect.top) / mapZoom,
+              cx: ((r.left + r.right) / 2 - boardRect.left) / mapZoom,
+              cy: ((r.top + r.bottom) / 2 - boardRect.top) / mapZoom
+            };
+          }
+
+          var srcBox = getBox(srcEl);
+          var outs = outMap.get(selectedId) || [];
+          var visibleOuts = outs.filter(function (t) {
+            var el = cardEls.get(t.id);
+            return el && !el.classList.contains("hidden");
+          });
+
+          // Draw general gray arrows first, then green labeled arrows on top
+          visibleOuts.sort(function (a, b) {
+            var la = LABELED_REL[selectedId + "->" + a.id] ? 1 : 0;
+            var lb = LABELED_REL[selectedId + "->" + b.id] ? 1 : 0;
+            return la - lb;
+          });
+
+          visibleOuts.forEach(function (targetNode, idx) {
+            var tgtEl = cardEls.get(targetNode.id);
+            if (!tgtEl) return;
+            var tgtBox = getBox(tgtEl);
+            var rel = LABELED_REL[selectedId + "->" + targetNode.id];
+            var isLabeled = Boolean(rel);
+
+            // Pick clean anchor sides based on relative position
+            var x1, y1, x2, y2, cx1, cy1, cx2, cy2;
+            var sameCol = Math.abs(srcBox.cx - tgtBox.cx) < 120;
+            if (sameCol) {
+              // Curve gracefully along right edge of cards in same column
+              x1 = srcBox.right;
+              y1 = srcBox.cy;
+              x2 = tgtBox.right;
+              y2 = tgtBox.cy;
+              var bulge = 38 + (idx % 3) * 14;
+              cx1 = Math.max(x1, x2) + bulge;
+              cy1 = y1;
+              cx2 = Math.max(x1, x2) + bulge;
+              cy2 = y2;
+            } else if (tgtBox.cx > srcBox.cx) {
+              x1 = srcBox.right;
+              y1 = srcBox.cy;
+              x2 = tgtBox.left - 3;
+              y2 = tgtBox.cy;
+              var dx = (x2 - x1) * 0.45;
+              cx1 = x1 + dx;
+              cy1 = y1;
+              cx2 = x2 - dx;
+              cy2 = y2;
+            } else {
+              x1 = srcBox.left;
+              y1 = srcBox.cy;
+              x2 = tgtBox.right + 3;
+              y2 = tgtBox.cy;
+              var dxL = (x1 - x2) * 0.45;
+              cx1 = x1 - dxL;
+              cy1 = y1;
+              cx2 = x2 + dxL;
+              cy2 = y2;
+            }
+
+            var d = "M " + x1 + " " + y1 + " C " + cx1 + " " + cy1 + ", " + cx2 + " " + cy2 + ", " + x2 + " " + y2;
+            var path = document.createElementNS(ns, "path");
+            path.setAttribute("d", d);
+            path.setAttribute("fill", "none");
+            path.setAttribute("stroke", isLabeled ? green : gray);
+            path.setAttribute("stroke-width", isLabeled ? "2.1" : "1.2");
+            path.setAttribute("stroke-opacity", isLabeled ? "0.92" : "0.42");
+            path.setAttribute("marker-end", isLabeled ? "url(#arrowGreen)" : "url(#arrowGray)");
+            mapSvg.appendChild(path);
+
+            if (isLabeled) {
+              // Cubic Bezier midpoint at t=0.52
+              var t = 0.52;
+              var u = 1 - t;
+              var lx = u*u*u*x1 + 3*u*u*t*cx1 + 3*u*t*t*cx2 + t*t*t*x2;
+              var ly = u*u*u*y1 + 3*u*u*t*cy1 + 3*u*t*t*cy2 + t*t*t*y2;
+              var textLen = rel.verb.length * 12 + 16;
+
+              var rect = document.createElementNS(ns, "rect");
+              rect.setAttribute("x", String(lx - textLen / 2));
+              rect.setAttribute("y", String(ly - 11));
+              rect.setAttribute("width", String(textLen));
+              rect.setAttribute("height", "22");
+              rect.setAttribute("rx", "11");
+              rect.setAttribute("fill", labelBg);
+              rect.setAttribute("stroke", green);
+              rect.setAttribute("stroke-width", "1.4");
+              mapSvg.appendChild(rect);
+
+              var txt = document.createElementNS(ns, "text");
+              txt.setAttribute("x", String(lx));
+              txt.setAttribute("y", String(ly + 4));
+              txt.setAttribute("text-anchor", "middle");
+              txt.setAttribute("font-size", "11.5");
+              txt.setAttribute("font-weight", "700");
+              txt.setAttribute("fill", green);
+              txt.textContent = rel.verb;
+              mapSvg.appendChild(txt);
+            }
+          });
+        }
+
+        function renderDetail(id) {
+          var nd = nodeMap.get(id);
+          if (!nd) return;
+          var secName = (ZONE_SHORT_TITLES[nd.section] || "").replace(/^\d+\s+/, "");
+          var outs = outMap.get(nd.id) || [];
+          var ins = inMap.get(nd.id) || [];
+
+          // Build "它负责什么 / 核心关联" rows
+          var relRows = [];
+          outs.forEach(function (t) {
+            var rel = LABELED_REL[nd.id + "->" + t.id];
+            if (rel) {
+              relRows.push({ id: t.id, label: t.shortLabel, note: rel.desc, primary: true });
+            }
+          });
+          if (relRows.length < 4) {
+            outs.forEach(function (t) {
+              if (relRows.length >= 5) return;
+              if (relRows.some(function (r) { return r.id === t.id; })) return;
+              relRows.push({ id: t.id, label: t.shortLabel, note: t.description.slice(0, 18) + (t.description.length > 18 ? "…" : ""), primary: false });
+            });
+          }
+
+          var relTitle = nd.id === "harness驾驭框架" ? "它负责什么" : "核心关联";
+          var relHtml = relRows.length
+            ? relRows.map(function (r) {
+                return '<div class="map-rel-row"><button type="button" class="map-rel-pill" data-map-select="' + escapeText(r.id) + '">' + escapeText(r.label) + '</button><span>→</span><span>' + escapeText(r.note) + "</span></div>";
+              }).join("")
+            : '<div style="font-size:13px;color:var(--text-muted)">为基础底层概念，被 ' + ins.length + " 个词条引用。</div>";
+
+          // Build "容易混淆 / 被引用" rows
+          var confList = CONFUSABLE[nd.id];
+          var secondTitle = confList ? "容易混淆" : ("被以下核心词条引用（" + ins.length + "）");
+          var secondHtml = "";
+          if (confList) {
+            secondHtml = confList.map(function (c) {
+              var cn = nodeMap.get(c.id);
+              return '<div class="map-rel-row"><button type="button" class="map-rel-pill muted" data-map-select="' + escapeText(c.id) + '">' + escapeText(cn ? cn.enTitle : c.id) + "</button><span>：</span><span>" + escapeText(c.note) + "</span></div>";
+            }).join("");
+          } else if (ins.length > 0) {
+            secondHtml = '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + ins.slice(0, 8).map(function (t) {
+              return '<button type="button" class="map-rel-pill muted" data-map-select="' + escapeText(t.id) + '">' + escapeText(t.shortLabel) + "</button>";
+            }).join("") + "</div>";
+          } else {
+            secondHtml = '<div style="font-size:13px;color:var(--text-muted)">暂无反向引用</div>';
+          }
+
+          mapDetail.innerHTML =
+            '<div>' +
+              '<div class="map-crumb">' + escapeText(secName) + " / " + escapeText(nd.enTitle) + "</div>" +
+              '<h2 class="map-detail-en">' + escapeText(nd.enTitle) + "</h2>" +
+              (nd.zhTitle ? '<div class="map-detail-zh">' + escapeText(nd.zhTitle) + "</div>" : "") +
+            "</div>" +
+            '<p class="map-detail-desc">' + escapeText(nd.description) + "</p>" +
+            '<div><h3 class="map-detail-sec-title">' + escapeText(relTitle) + '</h3><div class="map-rel-list">' + relHtml + "</div></div>" +
+            '<div><h3 class="map-detail-sec-title">' + escapeText(secondTitle) + '</h3><div class="map-rel-list">' + secondHtml + "</div></div>" +
+            '<div class="map-detail-actions">' +
+              '<button type="button" class="map-read-btn" data-map-read="' + escapeText(nd.id) + '">阅读完整词条 ↗</button>' +
+              '<button type="button" class="map-graph-btn" data-map-graph="' + escapeText(nd.id) + '">在交互式知识图谱中查看</button>' +
+            "</div>";
+        }
+
+        function selectNode(id) {
+          if (!nodeMap.has(id)) return;
+          selectedId = id;
+          renderDetail(id);
+          updateVisibilityAndHighlight();
+          var el = cardEls.get(id);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+          }
+        }
+
+        mapGrid.addEventListener("click", function (e) {
+          var tBtn = e.target.closest(".map-zone-toggle");
+          if (tBtn) {
+            var secId = Number(tBtn.dataset.sec);
+            if (expandAll) {
+              expandAll = false;
+              expandedZones.clear();
+            } else if (expandedZones.has(secId)) {
+              expandedZones.delete(secId);
+            } else {
+              expandedZones.add(secId);
+            }
+            updateVisibilityAndHighlight();
+          }
+        });
+
+        mapDetail.addEventListener("click", function (e) {
+          var selBtn = e.target.closest("[data-map-select]");
+          if (selBtn) { selectNode(selBtn.dataset.mapSelect); return; }
+          var readBtn = e.target.closest("[data-map-read]");
+          if (readBtn) { setView("dict", readBtn.dataset.mapRead); return; }
+          var graphBtn = e.target.closest("[data-map-graph]");
+          if (graphBtn) { setView("graph", graphBtn.dataset.mapGraph); }
+        });
+
+        mapExpandAllBtn.addEventListener("click", function () {
+          expandAll = !expandAll;
+          if (!expandAll) expandedZones.clear();
+          updateVisibilityAndHighlight();
+        });
+
+        function applyZoom(z) {
+          mapZoom = Math.max(0.7, Math.min(1.35, Math.round(z * 100) / 100));
+          mapBoard.style.transform = "scale(" + mapZoom + ")";
+          mapZoomVal.textContent = Math.round(mapZoom * 100) + "%";
+          requestAnimationFrame(drawArrows);
+        }
+
+        document.getElementById("mapZoomIn").addEventListener("click", function () { applyZoom(mapZoom + 0.1); });
+        document.getElementById("mapZoomOut").addEventListener("click", function () { applyZoom(mapZoom - 0.1); });
+        document.getElementById("mapZoomReset").addEventListener("click", function () { applyZoom(1); });
+
+        window.addEventListener("resize", function () {
+          if (currentView === "map") requestAnimationFrame(drawArrows);
+        });
+
+        renderDetail(selectedId);
+        updateVisibilityAndHighlight();
+
+        return {
+          selectNode: selectNode,
+          redrawArrows: drawArrows,
+          setSearchQuery: function (q) {
+            mapQuery = (q || "").trim().toLowerCase();
+            updateVisibilityAndHighlight();
+          }
+        };
+      }
+
+      // Route initial view from URL hash (default: Editorial Knowledge Map)
+      var initHash = window.location.hash;
+      if (initHash === "#graph") {
         setView("graph");
+      } else if (initHash && initHash !== "#map") {
+        var decodedSlug = decodeURIComponent(initHash.slice(1));
+        if (document.getElementById(decodedSlug)) {
+          setView("dict", decodedSlug);
+        } else {
+          setView("map");
+        }
+      } else {
+        setView("map");
       }
     })();
   </script>

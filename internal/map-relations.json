@@ -1,0 +1,631 @@
+{
+  "labeledRelations": {
+    "ai人工智能->模型model": { "verb": "当前指代", "desc": "当下主要指大语言模型" },
+    "ai人工智能->harness驾驭框架": { "verb": "落于", "desc": "常被误用来指外围软件层" },
+    "ai人工智能->agent智能体": { "verb": "落于", "desc": "实际交互的是运行中的智能体" },
+
+    "模型model->参数parameters": { "verb": "由…构成", "desc": "本质是数十亿个静态参数" },
+    "模型model->无状态stateless": { "verb": "具有", "desc": "请求之间不保留任何记忆" },
+    "模型model->下一个-token-预测next-token-prediction": { "verb": "仅执行", "desc": "唯一底层工作机制" },
+    "模型model->harness驾驭框架": { "verb": "需搭配", "desc": "靠驾驭框架才具备行动力" },
+
+    "参数parameters->模型model": { "verb": "构成", "desc": "模型的全部权重数值" },
+    "参数parameters->训练training": { "verb": "调优自", "desc": "训练阶段反复调整形成" },
+    "参数parameters->推理inference": { "verb": "冻结于", "desc": "推理阶段保持只读不变" },
+    "参数parameters->参数知识parametric-knowledge": { "verb": "存储", "desc": "固化在权重中的世界知识" },
+
+    "训练training->参数parameters": { "verb": "调整", "desc": "用海量文本迭代更新权重" },
+    "训练training->下一个-token-预测next-token-prediction": { "verb": "优化", "desc": "以预测下一个词元为目标" },
+    "训练training->参数知识parametric-knowledge": { "verb": "写入", "desc": "决定模型出厂时知道什么" },
+    "训练training->知识截止日期knowledge-cutoff": { "verb": "形成", "desc": "训练数据结束即知识冻结" },
+
+    "推理inference->模型model": { "verb": "运行", "desc": "驱动已训练模型生成输出" },
+    "推理inference->模型提供商请求model-provider-request": { "verb": "发生于", "desc": "每次 API 请求执行一次推理" },
+    "推理inference->参数parameters": { "verb": "只读", "desc": "推理不修改模型自身权重" },
+    "推理inference->输出-tokenoutput-tokens": { "verb": "产出", "desc": "逐个生成输出 Token" },
+
+    "推理强度effort->推理inference": { "verb": "调节", "desc": "控制回答前的思考深度" },
+    "推理强度effort->输出-tokenoutput-tokens": { "verb": "消耗", "desc": "思考越深消耗越多输出 Token" },
+    "推理强度effort->模型提供商请求model-provider-request": { "verb": "配置于", "desc": "随单次请求参数下发" },
+
+    "token词元->模型model": { "verb": "读写单位", "desc": "模型处理的最小文本单元" },
+    "token词元->上下文窗口context-window": { "verb": "计量", "desc": "决定窗口容量上限" },
+    "token词元->输入-tokeninput-tokens": { "verb": "分为", "desc": "发往模型的输入侧计费单元" },
+    "token词元->输出-tokenoutput-tokens": { "verb": "分为", "desc": "模型生成的输出侧计费单元" },
+
+    "下一个-token-预测next-token-prediction->上下文context": { "verb": "基于", "desc": "根据当前上下文采样下一词" },
+    "下一个-token-预测next-token-prediction->token词元": { "verb": "逐个生成", "desc": "每次只追加一个 Token" },
+    "下一个-token-预测next-token-prediction->非确定性non-determinism": { "verb": "带来", "desc": "概率采样导致结果有波动" },
+    "下一个-token-预测next-token-prediction->工具调用tool-call": { "verb": "同样生成", "desc": "工具调用也是预测出的文本" },
+
+    "非确定性non-determinism->推理inference": { "verb": "源于", "desc": "采样随机性与并行浮点差异" },
+    "非确定性non-determinism->模型提供商model-provider": { "verb": "受影响于", "desc": "服务端批处理也会引入差异" },
+    "非确定性non-determinism->自动化检查automated-check": { "verb": "需配对", "desc": "用确定性检查兜底输出质量" },
+
+    "模型提供商model-provider->推理inference": { "verb": "托管", "desc": "提供算力运行模型推理" },
+    "模型提供商model-provider->模型提供商请求model-provider-request": { "verb": "响应", "desc": "接收上下文并返回响应" },
+    "模型提供商model-provider->前缀缓存prefix-cache": { "verb": "维护", "desc": "服务端缓存共享前缀降本提速" },
+
+    "harness驾驭框架->模型model": { "verb": "调用", "desc": "发起请求" },
+    "harness驾驭框架->上下文context": { "verb": "组装", "desc": "组装输入" },
+    "harness驾驭框架->工具tool": { "verb": "执行", "desc": "执行调用" },
+    "harness驾驭框架->会话session": { "verb": "保存", "desc": "保存历史" },
+
+    "模型提供商请求model-provider-request->harness驾驭框架": { "verb": "发起自", "desc": "由驾驭框架拼装并发送" },
+    "模型提供商请求model-provider-request->模型提供商model-provider": { "verb": "发往", "desc": "一次完整的网络请求往返" },
+    "模型提供商请求model-provider-request->输入-tokeninput-tokens": { "verb": "携带", "desc": "把完整上下文作为输入发送" },
+    "模型提供商请求model-provider-request->输出-tokenoutput-tokens": { "verb": "返回", "desc": "返回回答或工具调用文本" },
+
+    "输入-tokeninput-tokens->模型提供商请求model-provider-request": { "verb": "随请求发送", "desc": "每次请求重传完整会话前缀" },
+    "输入-tokeninput-tokens->前缀缓存prefix-cache": { "verb": "可命中", "desc": "共享前缀可大幅降低成本" },
+    "输入-tokeninput-tokens->缓存-tokencache-tokens": { "verb": "转化为", "desc": "命中缓存后按低价计费" },
+    "输入-tokeninput-tokens->输出-tokenoutput-tokens": { "verb": "单价低于", "desc": "输入计费远低于输出 Token" },
+
+    "输出-tokenoutput-tokens->模型model": { "verb": "生成自", "desc": "模型逐词生成的全部内容" },
+    "输出-tokenoutput-tokens->输入-tokeninput-tokens": { "verb": "单价高于", "desc": "算力开销大、账单占比高" },
+    "输出-tokenoutput-tokens->推理强度effort": { "verb": "受控于", "desc": "深度思考同样按输出计费" },
+    "输出-tokenoutput-tokens->工具调用tool-call": { "verb": "包含", "desc": "工具调用 JSON 也计入输出" },
+
+    "前缀缓存prefix-cache->模型提供商model-provider": { "verb": "运行于", "desc": "由提供商服务端维护的缓存" },
+    "前缀缓存prefix-cache->system-prompt系统提示词": { "verb": "依赖稳定", "desc": "开头内容不变才能命中缓存" },
+    "前缀缓存prefix-cache->缓存-tokencache-tokens": { "verb": "产出", "desc": "命中的前缀按缓存单价计费" },
+    "前缀缓存prefix-cache->输入-tokeninput-tokens": { "verb": "节省", "desc": "避免每轮重复计算历史输入" },
+
+    "缓存-tokencache-tokens->前缀缓存prefix-cache": { "verb": "来自", "desc": "命中前缀缓存的那部分输入" },
+    "缓存-tokencache-tokens->输入-tokeninput-tokens": { "verb": "属于", "desc": "输入 Token 的折价子集" },
+    "缓存-tokencache-tokens->会话session": { "verb": "降本于", "desc": "让长会话多轮对话保持低成本" },
+
+    "无状态stateless->模型model": { "verb": "固有属性", "desc": "模型本身不记任何历史" },
+    "无状态stateless->有状态stateful": { "verb": "相对概念", "desc": "有状态靠外部反复重传模拟" },
+    "无状态stateless->记忆系统memory-system": { "verb": "借助突破", "desc": "跨会话记忆需持久化到外部" },
+    "无状态stateless->交接产物handoff-artifact": { "verb": "依赖传递", "desc": "新会话靠文档承接前序认知" },
+
+    "上下文context->上下文窗口context-window": { "verb": "装入", "desc": "受限于窗口容量上限" },
+    "上下文context->会话session": { "verb": "累积于", "desc": "随对话与工具结果不断增长" },
+    "上下文context->注意力退化attention-degradation": { "verb": "过长触发", "desc": "冗余上下文稀释模型注意力" },
+
+    "上下文窗口context-window->token词元": { "verb": "计量单位", "desc": "以 Token 总数衡量容量上限" },
+    "上下文窗口context-window->模型提供商请求model-provider-request": { "verb": "单次视野", "desc": "模型每次请求的全部感知面" },
+    "上下文窗口context-window->上下文压缩compaction": { "verb": "满载触发", "desc": "逼近上限时需压缩腾出空间" },
+    "上下文窗口context-window->注意力预算attention-budget": { "verb": "约束", "desc": "窗口越满、有效注意力越稀缺" },
+
+    "有状态stateful->会话session": { "verb": "体现于", "desc": "会话在轮次之间延续上下文" },
+    "有状态stateful->无状态stateless": { "verb": "相对概念", "desc": "本质是驾驭框架重传历史模拟" },
+    "有状态stateful->记忆系统memory-system": { "verb": "跨会话依靠", "desc": "靠外部存储跨越会话边界" },
+    "有状态stateful->聪明区smart-zone": { "verb": "受限于", "desc": "状态累积过多会滑出聪明区" },
+
+    "agent智能体->模型model": { "verb": "内核为", "desc": "底层推理与生成引擎" },
+    "agent智能体->harness驾驭框架": { "verb": "依托", "desc": "驱动循环与调度工具的外壳" },
+    "agent智能体->工具tool": { "verb": "调用", "desc": "借工具读写与操作真实环境" },
+    "agent智能体->上下文窗口context-window": { "verb": "感知面", "desc": "工作记忆的物理边界" },
+
+    "system-prompt系统提示词->harness驾驭框架": { "verb": "注入自", "desc": "由驾驭框架置于每次请求开头" },
+    "system-prompt系统提示词->模型提供商请求model-provider-request": { "verb": "前置附带", "desc": "每轮请求都会带上常驻简报" },
+    "system-prompt系统提示词->前缀缓存prefix-cache": { "verb": "保持命中", "desc": "保持稳定才能命中前缀缓存" },
+    "system-prompt系统提示词->agentsmd": { "verb": "常融合", "desc": "项目级规范通常注入此区域" },
+
+    "会话session->轮次turn": { "verb": "包含多个", "desc": "由用户与 Agent 交替轮次组成" },
+    "会话session->上下文窗口context-window": { "verb": "持续填充", "desc": "随对话与工具结果不断累积" },
+    "会话session->清空会话clearing": { "verb": "终止于", "desc": "主动清空以开启全新干净会话" },
+    "会话session->交接handoff": { "verb": "延续靠", "desc": "通过交接把认知传给下一会话" },
+
+    "轮次turn->模型提供商请求model-provider-request": { "verb": "包含多次", "desc": "一轮内可触发多轮工具往返" },
+    "轮次turn->工具调用tool-call": { "verb": "串联", "desc": "持续调用工具直到交还控制权" },
+    "轮次turn->会话session": { "verb": "构成", "desc": "会话的基本交互推进单元" },
+
+    "环境environment->文件系统filesystem": { "verb": "默认形态", "desc": "编程 Agent 最常面对代码文件树" },
+    "环境environment->工具调用tool-call": { "verb": "被修改于", "desc": "Agent 通过工具调用改变环境" },
+    "环境environment->工具返回结果tool-result": { "verb": "被感知于", "desc": "Agent 仅借工具结果观察环境" },
+    "环境environment->agent体验ax": { "verb": "决定", "desc": "环境质量直接决定 Agent 表现" },
+
+    "文件系统filesystem->环境environment": { "verb": "构成", "desc": "编程 Agent 的默认外部世界" },
+    "文件系统filesystem->工具tool": { "verb": "操作靠", "desc": "通过读写、搜索与终端工具操作" },
+    "文件系统filesystem->沙箱sandbox": { "verb": "隔离靠", "desc": "限制可读写目录防止越界破坏" },
+    "文件系统filesystem->agentsmd": { "verb": "存放", "desc": "项目常驻规则与文档驻留于此" },
+
+    "工具tool->harness驾驭框架": { "verb": "暴露自", "desc": "由驾驭框架定义并负责执行" },
+    "工具tool->环境environment": { "verb": "连接", "desc": "Agent 感知与修改外界的桥梁" },
+    "工具tool->工具调用tool-call": { "verb": "触发方式", "desc": "模型输出结构化调用来请求执行" },
+    "工具tool->mcp模型上下文协议": { "verb": "扩展靠", "desc": "借助 MCP 接入第三方外部工具" },
+
+    "工具调用tool-call->模型model": { "verb": "输出自", "desc": "模型生成的结构化调用文本" },
+    "工具调用tool-call->harness驾驭框架": { "verb": "解析执行", "desc": "由驾驭框架读取并真正运行" },
+    "工具调用tool-call->权限模式permission-mode": { "verb": "受检于", "desc": "执行前按权限规则决定是否放行" },
+    "工具调用tool-call->工具返回结果tool-result": { "verb": "产生", "desc": "执行完毕将结果回传给模型" },
+
+    "工具返回结果tool-result->harness驾驭框架": { "verb": "回传自", "desc": "由驾驭框架注入下一次请求" },
+    "工具返回结果tool-result->工具调用tool-call": { "verb": "响应", "desc": "与工具调用配对构成单次往返" },
+    "工具返回结果tool-result->环境environment": { "verb": "反映", "desc": "Agent 观察外界状态的唯一窗口" },
+    "工具返回结果tool-result->上下文窗口context-window": { "verb": "占用", "desc": "冗长输出会快速挤占窗口预算" },
+
+    "mcp模型上下文协议->harness驾驭框架": { "verb": "接入", "desc": "为驾驭框架挂载外部工具服务" },
+    "mcp模型上下文协议->工具tool": { "verb": "扩展", "desc": "提供内置工具之外的外部能力" },
+    "mcp模型上下文协议->注意力预算attention-budget": { "verb": "消耗", "desc": "过多工具定义会挤占上下文预算" },
+
+    "权限请求permission-request->harness驾驭框架": { "verb": "弹出自", "desc": "执行未预批工具前暂停询问" },
+    "权限请求permission-request->工具调用tool-call": { "verb": "拦截", "desc": "对高风险或未授权调用把关" },
+    "权限请求permission-request->人在回路human-in-the-loop": { "verb": "实现", "desc": "把人类判断嵌入执行关键节点" },
+    "权限请求permission-request->权限模式permission-mode": { "verb": "受控于", "desc": "决定哪些操作需要弹窗审批" },
+
+    "权限模式permission-mode->权限请求permission-request": { "verb": "控制触发", "desc": "规定自动放行与人工审批边界" },
+    "权限模式permission-mode->agent-模式agent-mode": { "verb": "隶属于", "desc": "构成 Agent 模式的权限切片" },
+    "权限模式permission-mode->沙箱sandbox": { "verb": "配合", "desc": "放宽权限时需沙箱兜底安全" },
+    "权限模式permission-mode->无人值守afk": { "verb": "支撑", "desc": "无人值守通常需要自动放行权限" },
+
+    "agent-模式agent-mode->权限模式permission-mode": { "verb": "打包", "desc": "捆绑预设的权限审批策略" },
+    "agent-模式agent-mode->system-prompt系统提示词": { "verb": "注入", "desc": "同时注入对应角色与行为指令" },
+    "agent-模式agent-mode->会话session": { "verb": "会话内切换", "desc": "可在规划与执行模式间中途切换" },
+
+    "沙箱sandbox->环境environment": { "verb": "隔离", "desc": "提供容器或受限壳执行空间" },
+    "沙箱sandbox->文件系统filesystem": { "verb": "限制访问", "desc": "把改动范围锁在安全边界内" },
+    "沙箱sandbox->无人值守afk": { "verb": "护航", "desc": "无人看管运行时的核心安全网" },
+    "沙箱sandbox->权限模式permission-mode": { "verb": "互补", "desc": "强隔离允许更宽松的自动放行" },
+
+    "谄媚sycophancy->模型model": { "verb": "常见偏差", "desc": "模型过度迎合用户的预设观点" },
+    "谄媚sycophancy->训练training": { "verb": "源于", "desc": "人类偏好对齐强化了顺从倾向" },
+    "谄媚sycophancy->清空会话clearing": { "verb": "纠偏靠", "desc": "新开会话中性提问可摆脱迎合" },
+
+    "幻觉hallucination->参数知识parametric-knowledge": { "verb": "缺口诱发", "desc": "事实性幻觉源于参数记忆缺失" },
+    "幻觉hallucination->知识截止日期knowledge-cutoff": { "verb": "加剧于", "desc": "截止日后的新 API 极易编造" },
+    "幻觉hallucination->注意力退化attention-degradation": { "verb": "诱发漂移", "desc": "长会话下忠实度幻觉显著增多" },
+    "幻觉hallucination->上下文知识contextual-knowledge": { "verb": "缓解靠", "desc": "把真实文档直接喂进上下文" },
+
+    "参数知识parametric-knowledge->参数parameters": { "verb": "存储于", "desc": "压缩固化在模型权重里的记忆" },
+    "参数知识parametric-knowledge->知识截止日期knowledge-cutoff": { "verb": "止步于", "desc": "训练结束后不再自动更新" },
+    "参数知识parametric-knowledge->上下文知识contextual-knowledge": { "verb": "互补于", "desc": "与实时喂入的外部事实形成对照" },
+
+    "知识截止日期knowledge-cutoff->训练training": { "verb": "决定于", "desc": "取决于训练语料的采集终点" },
+    "知识截止日期knowledge-cutoff->参数知识parametric-knowledge": { "verb": "划定边界", "desc": "界定模型先天知识的时间上限" },
+    "知识截止日期knowledge-cutoff->上下文知识contextual-knowledge": { "verb": "弥补靠", "desc": "新版本文档需动态拉入上下文" },
+
+    "上下文知识contextual-knowledge->上下文context": { "verb": "读取自", "desc": "当前上下文里可直接查证的事实" },
+    "上下文知识contextual-knowledge->参数知识parametric-knowledge": { "verb": "优先于", "desc": "比模糊的参数记忆更可靠准确" },
+    "上下文知识contextual-knowledge->幻觉hallucination": { "verb": "抑制", "desc": "提供一手依据减少凭空捏造" },
+
+    "注意力关联attention-relationship->token词元": { "verb": "配对", "desc": "每两个 Token 间都存在关联对" },
+    "注意力关联attention-relationship->注意力预算attention-budget": { "verb": "瓜分", "desc": "关联对按 N² 增长争夺有限预算" },
+    "注意力关联attention-relationship->注意力退化attention-degradation": { "verb": "导致", "desc": "无效配对过多稀释关键信号" },
+
+    "注意力预算attention-budget->token词元": { "verb": "按词固定", "desc": "每个 Token 的总关注力恒定有限" },
+    "注意力预算attention-budget->注意力关联attention-relationship": { "verb": "分配给", "desc": "被上下文中的所有配对平分竞争" },
+    "注意力预算attention-budget->注意力退化attention-degradation": { "verb": "稀释引发", "desc": "窗口变长时单条有效信号变弱" },
+    "注意力预算attention-budget->清空会话clearing": { "verb": "重置靠", "desc": "清空无关历史恢复高信噪比" },
+
+    "注意力退化attention-degradation->会话session": { "verb": "随长度恶化", "desc": "会话越长遗忘与跑偏越明显" },
+    "注意力退化attention-degradation->注意力预算attention-budget": { "verb": "源于稀释", "desc": "竞争者增多导致有效信号变弱" },
+    "注意力退化attention-degradation->聪明区smart-zone": { "verb": "推离", "desc": "让 Agent 从聪明区滑入愚钝区" },
+    "注意力退化attention-degradation->交接handoff": { "verb": "应对靠", "desc": "及时交接或清空重启保持敏锐" },
+
+    "聪明区smart-zone->会话session": { "verb": "黄金区间", "desc": "会话前期上下文精简、推理敏锐" },
+    "聪明区smart-zone->注意力退化attention-degradation": { "verb": "退化滑出", "desc": "噪音累积后跌入愚钝区" },
+    "聪明区smart-zone->清空会话clearing": { "verb": "回归靠", "desc": "主动清空重回高信噪比状态" },
+    "聪明区smart-zone->上下文压缩compaction": { "verb": "延长靠", "desc": "压缩历史以换取额外可用空间" },
+
+    "清空会话clearing->会话session": { "verb": "结束重启", "desc": "彻底终止当前会话并开新会话" },
+    "清空会话clearing->上下文窗口context-window": { "verb": "归零", "desc": "获得 100% 干净的空上下文窗口" },
+    "清空会话clearing->交接产物handoff-artifact": { "verb": "常搭配", "desc": "先写下交接文档再放心清空" },
+    "清空会话clearing->上下文压缩compaction": { "verb": "替代方案", "desc": "比自动压缩更彻底、无旧噪音" },
+
+    "交接handoff->会话session": { "verb": "跨越", "desc": "把认知从旧会话单向传给新会话" },
+    "交接handoff->交接产物handoff-artifact": { "verb": "载体为", "desc": "通过文件把状态落盘带入新会话" },
+    "交接handoff->上下文压缩compaction": { "verb": "内存形式", "desc": "压缩本质是内存中的自动交接" },
+    "交接handoff->清空会话clearing": { "verb": "配合", "desc": "写出交接产物后清空旧会话" },
+
+    "一手信源primary-source->二手信源secondary-source": { "verb": "相对概念", "desc": "原始代码与日志，无损但占空间" },
+    "一手信源primary-source->上下文窗口context-window": { "verb": "开销较高", "desc": "直接全量加载会消耗大量 Token" },
+    "一手信源primary-source->注意力预算attention-budget": { "verb": "权衡", "desc": "需按需加载避免挤爆注意力预算" },
+
+    "二手信源secondary-source->一手信源primary-source": { "verb": "提炼自", "desc": "摘要与文档必然丢失部分细节" },
+    "二手信源secondary-source->上下文压缩compaction": { "verb": "常见产自", "desc": "压缩摘要是典型的二手信源" },
+    "二手信源secondary-source->交接产物handoff-artifact": { "verb": "常用于", "desc": "以低 Token 成本快速传递全局脉络" },
+    "二手信源secondary-source->上下文指针context-pointer": { "verb": "应附带", "desc": "附上路径指针方便按需回查原文" },
+
+    "交接产物handoff-artifact->交接handoff": { "verb": "承载", "desc": "跨会话传递上下文的落盘文档" },
+    "交接产物handoff-artifact->spec规格说明书": { "verb": "具体形态", "desc": "描述跨多会话的大型功能规格" },
+    "交接产物handoff-artifact->ticket任务单": { "verb": "具体形态", "desc": "界定单个会话可完成的任务切片" },
+    "交接产物handoff-artifact->环境environment": { "verb": "持久化于", "desc": "写入代码库或 Issue 系统留存" },
+
+    "spec规格说明书->交接产物handoff-artifact": { "verb": "属于", "desc": "面向多会话工程的顶层交接文档" },
+    "spec规格说明书->ticket任务单": { "verb": "拆分为", "desc": "分解为可逐个执行的任务单" },
+    "spec规格说明书->聪明区smart-zone": { "verb": "保障", "desc": "让每个子会话聚焦局部、不超载" },
+
+    "ticket任务单->交接产物handoff-artifact": { "verb": "属于", "desc": "对应单次会话范围的交接载体" },
+    "ticket任务单->spec规格说明书": { "verb": "隶属于", "desc": "可独立存在或挂靠在 Spec 下" },
+    "ticket任务单->软件工厂software-factory": { "verb": "驱动", "desc": "作为自动化流水线的标准工单" },
+
+    "上下文压缩compaction->交接handoff": { "verb": "本质是", "desc": "在内存里自动完成的会话交接" },
+    "上下文压缩compaction->会话session": { "verb": "压缩", "desc": "总结旧历史并开启新会话种子" },
+    "上下文压缩compaction->二手信源secondary-source": { "verb": "生成", "desc": "有损摘要会丢失细微代码细节" },
+    "上下文压缩compaction->自动压缩autocompact": { "verb": "自动版为", "desc": "满窗时由驾驭框架自动触发" },
+
+    "自动压缩autocompact->上下文压缩compaction": { "verb": "自动触发", "desc": "无需人工指令即可执行压缩" },
+    "自动压缩autocompact->上下文窗口context-window": { "verb": "监测", "desc": "接近窗口上限时自动介入" },
+    "自动压缩autocompact->harness驾驭框架": { "verb": "执行自", "desc": "由驾驭框架在后台自动编排" },
+
+    "记忆系统memory-system->有状态stateful": { "verb": "试图实现", "desc": "让 Agent 跨越会话记住偏好与事实" },
+    "记忆系统memory-system->环境environment": { "verb": "持久化于", "desc": "把学到的信息写回外部文件" },
+    "记忆系统memory-system->agentsmd": { "verb": "入口常在", "desc": "启动时通过常驻指南索引读取" },
+    "记忆系统memory-system->二手信源secondary-source": { "verb": "本质多为", "desc": "随代码演进容易过时，需定期校准" },
+
+    "agentsmd->harness驾驭框架": { "verb": "加载自", "desc": "会话启动时自动注入上下文窗口" },
+    "agentsmd->渐进式披露progressive-disclosure": { "verb": "应遵循", "desc": "保持精简、只放高价值常驻规则" },
+    "agentsmd->上下文指针context-pointer": { "verb": "内置", "desc": "用指针引向按需查阅的详细文档" },
+    "agentsmd->skill技能": { "verb": "配合", "desc": "低频专项流程下沉为 Skill 管理" },
+
+    "渐进式披露progressive-disclosure->上下文指针context-pointer": { "verb": "实现靠", "desc": "先给精简索引，需要时再读全文" },
+    "渐进式披露progressive-disclosure->注意力预算attention-budget": { "verb": "保护", "desc": "避免无关文档提前占满注意力" },
+    "渐进式披露progressive-disclosure->skill技能": { "verb": "落地为", "desc": "Skill 是内置在框架中的最佳实践" },
+    "渐进式披露progressive-disclosure->agentsmd": { "verb": "指导编写", "desc": "防止 AGENTS.md 膨胀失控" },
+
+    "上下文指针context-pointer->渐进式披露progressive-disclosure": { "verb": "核心机制", "desc": "用一句话线索指引按需加载" },
+    "上下文指针context-pointer->agentsmd": { "verb": "常置于", "desc": "放在常驻入口文件中指向各模块" },
+    "上下文指针context-pointer->skill技能": { "verb": "触发", "desc": "匹配任务场景时拉入完整 Skill" },
+    "上下文指针context-pointer->一手信源primary-source": { "verb": "指向", "desc": "引导 Agent 必要时直读原始文件" },
+
+    "skill技能->渐进式披露progressive-disclosure": { "verb": "封装实现", "desc": "平时仅露简介，触发时全量加载" },
+    "skill技能->上下文指针context-pointer": { "verb": "唤醒靠", "desc": "通过描述指针按需拉入上下文" },
+    "skill技能->harness驾驭框架": { "verb": "托管于", "desc": "由驾驭框架发现与动态加载" },
+    "skill技能->agentsmd": { "verb": "减负于", "desc": "把特定工作流从常驻文档剥离" },
+
+    "subagent子智能体->agent智能体": { "verb": "派生自", "desc": "由主 Agent 通过工具调用拉起" },
+    "subagent子智能体->会话session": { "verb": "独立运行", "desc": "拥有全新隔离的会话与上下文窗口" },
+    "subagent子智能体->工具返回结果tool-result": { "verb": "仅返回", "desc": "向主会话汇报精炼的单一结果" },
+    "subagent子智能体->二手信源secondary-source": { "verb": "产出", "desc": "主 Agent 收到的是子任务摘要" },
+
+    "home-repo主控仓库->skill技能": { "verb": "集中存放", "desc": "统一沉淀跨项目复用的 Skill" },
+    "home-repo主控仓库->agentsmd": { "verb": "统筹", "desc": "放置个人或团队级总控指南" },
+    "home-repo主控仓库->上下文指针context-pointer": { "verb": "索引", "desc": "指向其他业务仓库与共享文档" },
+    "home-repo主控仓库->软件工厂software-factory": { "verb": "支撑", "desc": "作为多仓库自动化调度的中枢" },
+
+    "人在回路human-in-the-loop->agent智能体": { "verb": "实时协作", "desc": "会话过程中随时审查与纠偏" },
+    "人在回路human-in-the-loop->无人值守afk": { "verb": "相对模式", "desc": "高交互陪伴 vs 放手后台跑" },
+    "人在回路human-in-the-loop->追问式访谈grilling": { "verb": "适合开展", "desc": "适合早期高歧义方案对齐" },
+    "人在回路human-in-the-loop->人工审查human-review": { "verb": "同步进行", "desc": "边产出边把关代码与方向" },
+
+    "无人值守afk->权限模式permission-mode": { "verb": "需放宽", "desc": "避免无人看管时卡在权限弹窗" },
+    "无人值守afk->沙箱sandbox": { "verb": "依赖保障", "desc": "强隔离限制无人运行时的风险" },
+    "无人值守afk->自动化检查automated-check": { "verb": "替代盯盘", "desc": "用测试和类型检查快速纠错" },
+    "无人值守afk->spec规格说明书": { "verb": "前置输入", "desc": "提前消除歧义再交由后台执行" },
+
+    "自动化检查automated-check->环境environment": { "verb": "运行于", "desc": "测试、类型检查、Lint 与构建" },
+    "自动化检查automated-check->agent体验ax": { "verb": "核心支柱", "desc": "让 Agent 无需人工即可自我纠正" },
+    "自动化检查automated-check->无人值守afk": { "verb": "兜底", "desc": "无人值守时拦截机械性错误" },
+    "自动化检查automated-check->自动化审查automated-review": { "verb": "互补于", "desc": "确定性通过/失败 vs 主观判断" },
+
+    "自动化审查automated-review->agent智能体": { "verb": "由…执行", "desc": "让另一个 Agent 审视产出代码" },
+    "自动化审查automated-review->subagent子智能体": { "verb": "常借助", "desc": "用独立上下文避免自我盲区" },
+    "自动化审查automated-review->自动化检查automated-check": { "verb": "进阶补充", "desc": "检查架构、边界与意图合理性" },
+    "自动化审查automated-review->人工审查human-review": { "verb": "前置分担", "desc": "在人类介入前先筛掉明显问题" },
+
+    "人工审查human-review->一手信源primary-source": { "verb": "必须直读", "desc": "读真实 Diff 才算审查，摘要不算" },
+    "人工审查human-review->二手信源secondary-source": { "verb": "不可替代", "desc": "只看 Agent 总结不算人工审查" },
+    "人工审查human-review->自动化审查automated-review": { "verb": "最终把关", "desc": "人类承担架构与业务责任" },
+
+    "vibe-coding氛围编程->人工审查human-review": { "verb": "跳过", "desc": "直接接受代码、不逐行审 Diff" },
+    "vibe-coding氛围编程->原型构建prototyping": { "verb": "常见于", "desc": "快速验证想法时成本极低" },
+    "vibe-coding氛围编程->自动化检查automated-check": { "verb": "可辅以", "desc": "依赖运行效果与自动化验证" },
+    "vibe-coding氛围编程->黑灯工厂dark-factory": { "verb": "演进对照", "desc": "个人随性不审 vs 工厂系统化不审" },
+
+    "设计构想design-concept->追问式访谈grilling": { "verb": "打磨靠", "desc": "通过逐题追问对齐隐含假设" },
+    "设计构想design-concept->交接产物handoff-artifact": { "verb": "外化为", "desc": "落盘为文档以防会话结束后丢失" },
+    "设计构想design-concept->spec规格说明书": { "verb": "固化为", "desc": "收敛清晰后沉淀为正式 Spec" },
+
+    "追问式访谈grilling->设计构想design-concept": { "verb": "共同打磨", "desc": "Agent 逐个提问逼出清晰决策" },
+    "追问式访谈grilling->spec规格说明书": { "verb": "产出", "desc": "访谈结束后直接整理为 Spec" },
+    "追问式访谈grilling->人在回路human-in-the-loop": { "verb": "典型实践", "desc": "把人类注意力花在最值钱的决策上" },
+    "追问式访谈grilling->原型构建prototyping": { "verb": "互补于", "desc": "文字聊不清时切到做个粗糙原型" },
+
+    "原型构建prototyping->追问式访谈grilling": { "verb": "互补于", "desc": "对话保真度不够时直接做出实物" },
+    "原型构建prototyping->人在回路human-in-the-loop": { "verb": "发生于", "desc": "快速试错并围绕实物讨论方向" },
+    "原型构建prototyping->spec规格说明书": { "verb": "反哺", "desc": "验证通过后再沉淀为正式规格" },
+
+    "开发者体验dx->agent体验ax": { "verb": "对照概念", "desc": "面向有状态人类 vs 无状态 Agent" },
+    "开发者体验dx->有状态stateful": { "verb": "依赖人类", "desc": "人类能靠记忆和口头沟通绕过缺陷" },
+    "开发者体验dx->agentsmd": { "verb": "难以覆盖", "desc": "给新人看的文档 Agent 未必找得到" },
+
+    "agent体验ax->环境environment": { "verb": "衡量", "desc": "代码库对 Agent 干活的友好程度" },
+    "agent体验ax->开发者体验dx": { "verb": "分叉于", "desc": "好 DX 不等于好 AX，需单独建设" },
+    "agent体验ax->自动化检查automated-check": { "verb": "核心维度", "desc": "快速文本报错是 Agent 自纠关键" },
+    "agent体验ax->聪明区smart-zone": { "verb": "保护", "desc": "精简常驻上下文留足任务空间" },
+
+    "软件工厂software-factory->无人值守afk": { "verb": "规模化", "desc": "由外部事件自动触发无人值守会话" },
+    "软件工厂software-factory->ticket任务单": { "verb": "消费", "desc": "按工单自动拉起 Agent 逐个交付" },
+    "软件工厂software-factory->人在回路human-in-the-loop": { "verb": "解放", "desc": "把人类时间留给真正需要拍板的环节" },
+    "软件工厂software-factory->黑灯工厂dark-factory": { "verb": "极致形态", "desc": "完全取消人工审查即成黑灯工厂" },
+
+    "黑灯工厂dark-factory->软件工厂software-factory": { "verb": "极端演进", "desc": "全流程无人写码且零人工审查" },
+    "黑灯工厂dark-factory->人工审查human-review": { "verb": "彻底移除", "desc": "人类不再阅读任何生成代码" },
+    "黑灯工厂dark-factory->自动化检查automated-check": { "verb": "完全依赖", "desc": "靠高覆盖测试与验证体系守住质量" },
+    "黑灯工厂dark-factory->vibe-coding氛围编程": { "verb": "区别于", "desc": "工厂靠严密自动化系统而非随性盲信" }
+  },
+  "confusable": {
+    "ai人工智能": [
+      { "id": "模型model", "note": "具体的静态参数文件，而非泛泛的行业标签" },
+      { "id": "agent智能体", "note": "实际与你对话并执行任务的运行整体" }
+    ],
+    "模型model": [
+      { "id": "agent智能体", "note": "模型配齐驾驭框架、工具与窗口后才成 Agent" },
+      { "id": "harness驾驭框架", "note": "外围软件层，负责管理会话与执行工具" }
+    ],
+    "参数parameters": [
+      { "id": "上下文窗口context-window", "note": "推理时的临时工作记忆，而非固定权重" },
+      { "id": "参数知识parametric-knowledge", "note": "参数是存储载体，参数知识是其中的信息" }
+    ],
+    "训练training": [
+      { "id": "推理inference", "note": "训练改权重且耗时昂贵；推理只读权重生成文本" },
+      { "id": "记忆系统memory-system", "note": "记忆靠外部文件持久化，并非重新训练模型" }
+    ],
+    "推理inference": [
+      { "id": "训练training", "note": "训练更新参数；推理参数完全冻结" },
+      { "id": "推理强度effort", "note": "推理是运行过程，推理强度是调节思考深度的旋钮" }
+    ],
+    "推理强度effort": [
+      { "id": "推理inference", "note": "推理指模型生成过程，推理强度指思考预算档位" },
+      { "id": "输出-tokenoutput-tokens", "note": "调高推理强度会显著增加隐式输出 Token 消耗" }
+    ],
+    "token词元": [
+      { "id": "输入-tokeninput-tokens", "note": "按方向细分：发给模型的上下文侧 Token" },
+      { "id": "输出-tokenoutput-tokens", "note": "按方向细分：模型新生成的高单价 Token" }
+    ],
+    "下一个-token-预测next-token-prediction": [
+      { "id": "推理inference", "note": "推理是工程执行过程，下一个 Token 预测是底层原理" },
+      { "id": "工具调用tool-call", "note": "工具调用并非特殊通道，同样由逐词预测生成" }
+    ],
+    "非确定性non-determinism": [
+      { "id": "幻觉hallucination", "note": "非确定性指结果会波动；幻觉指自信地输出错误" },
+      { "id": "自动化检查automated-check", "note": "检查脚本是确定性的，专门用来约束非确定输出" }
+    ],
+    "模型提供商model-provider": [
+      { "id": "harness驾驭框架", "note": "提供商托管模型推理，驾驭框架运行在客户端编排" },
+      { "id": "模型model", "note": "同一开源模型可由多家提供商托管服务" }
+    ],
+    "harness驾驭框架": [
+      { "id": "模型model", "note": "只负责生成输出，无法读写文件或执行命令" },
+      { "id": "agent智能体", "note": "模型与驾驭框架结合后的运行整体" }
+    ],
+    "模型提供商请求model-provider-request": [
+      { "id": "轮次turn", "note": "一个轮次往往包含多次模型提供商请求往返" },
+      { "id": "会话session", "note": "会话跨越多个轮次，请求只是单次 HTTP 往返" }
+    ],
+    "输入-tokeninput-tokens": [
+      { "id": "缓存-tokencache-tokens", "note": "命中前缀缓存的输入 Token，单价低得多" },
+      { "id": "输出-tokenoutput-tokens", "note": "模型生成侧 Token，计费单价通常高数倍" }
+    ],
+    "输出-tokenoutput-tokens": [
+      { "id": "输入-tokeninput-tokens", "note": "输入侧发送的上下文 Token，单价更低" },
+      { "id": "推理强度effort", "note": "隐藏的思考过程同样按输出 Token 计费" }
+    ],
+    "前缀缓存prefix-cache": [
+      { "id": "缓存-tokencache-tokens", "note": "前缀缓存是服务端机制，缓存 Token 是计费单位" },
+      { "id": "记忆系统memory-system", "note": "前缀缓存只为省钱提速，不负责跨会话记事" }
+    ],
+    "缓存-tokencache-tokens": [
+      { "id": "输入-tokeninput-tokens", "note": "未命中缓存的全价输入 Token" },
+      { "id": "前缀缓存prefix-cache", "note": "产生缓存 Token 折扣的底层服务端机制" }
+    ],
+    "无状态stateless": [
+      { "id": "有状态stateful", "note": "会话看似有状态，实为每次重传历史模拟而成" },
+      { "id": "清空会话clearing", "note": "清空是主动回到初始无状态的操作" }
+    ],
+    "上下文context": [
+      { "id": "上下文窗口context-window", "note": "上下文是装进去的信息，窗口是容器容量上限" },
+      { "id": "会话session", "note": "会话是交互过程，上下文是当下对任务有用的信息" }
+    ],
+    "上下文窗口context-window": [
+      { "id": "上下文context", "note": "当前与任务相关的信息集合" },
+      { "id": "会话session", "note": "随轮次累积的完整交互过程" }
+    ],
+    "有状态stateful": [
+      { "id": "无状态stateless", "note": "底层模型天然无状态，状态全靠外部维护" },
+      { "id": "记忆系统memory-system", "note": "把会话内状态进一步延伸到跨会话层面" }
+    ],
+    "agent智能体": [
+      { "id": "模型model", "note": "静态参数文件，本身没有工具和执行循环" },
+      { "id": "harness驾驭框架", "note": "外围软件层，负责驱动模型与工具" }
+    ],
+    "system-prompt系统提示词": [
+      { "id": "agentsmd", "note": "System prompt 由工具内置，AGENTS.md 由项目维护" },
+      { "id": "agent-模式agent-mode", "note": "切换 Agent 模式时会动态改写部分系统指令" }
+    ],
+    "会话session": [
+      { "id": "轮次turn", "note": "轮次是单次“你问我答+工具循环”，会话包含多个轮次" },
+      { "id": "上下文窗口context-window", "note": "窗口是物理上限，会话是随时间累积的交互历程" }
+    ],
+    "轮次turn": [
+      { "id": "模型提供商请求model-provider-request", "note": "一轮内调 10 次工具就会发出 11 次提供商请求" },
+      { "id": "会话session", "note": "多轮交互累积构成一次完整会话" }
+    ],
+    "环境environment": [
+      { "id": "harness驾驭框架", "note": "驾驭框架是调度软件，环境是它外部被操作的世界" },
+      { "id": "文件系统filesystem", "note": "文件系统只是编程场景下最常见的一种环境" }
+    ],
+    "文件系统filesystem": [
+      { "id": "环境environment", "note": "环境还包含数据库、网络、CI 等更广义的外部系统" },
+      { "id": "沙箱sandbox", "note": "沙箱是对文件系统与执行权限施加的隔离边界" }
+    ],
+    "工具tool": [
+      { "id": "工具调用tool-call", "note": "工具是可用函数定义，工具调用是单次调用指令" },
+      { "id": "mcp模型上下文协议", "note": "MCP 是接入外部工具的协议，而非工具本身" }
+    ],
+    "工具调用tool-call": [
+      { "id": "工具tool", "note": "工具是能力声明，工具调用是模型生成的结构化文本" },
+      { "id": "工具返回结果tool-result", "note": "调用是模型发出的请求，返回结果是框架回传的输出" }
+    ],
+    "工具返回结果tool-result": [
+      { "id": "工具调用tool-call", "note": "前者是执行后的反馈，后者是执行前的意图文本" },
+      { "id": "上下文知识contextual-knowledge", "note": "工具返回结果是上下文知识最主要的动态来源" }
+    ],
+    "mcp模型上下文协议": [
+      { "id": "工具tool", "note": "Agent 实际调用的是工具，MCP 只是发现与挂载协议" },
+      { "id": "skill技能", "note": "MCP 扩展外部工具接口，Skill 封装可复用的方法论指令" }
+    ],
+    "权限请求permission-request": [
+      { "id": "权限模式permission-mode", "note": "请求是单次弹窗，模式是决定何时弹窗的全局规则" },
+      { "id": "沙箱sandbox", "note": "权限请求靠人把关，沙箱靠系统边界兜底" }
+    ],
+    "权限模式permission-mode": [
+      { "id": "agent-模式agent-mode", "note": "Agent 模式除了权限规则，还附带行为系统指令" },
+      { "id": "权限请求permission-request", "note": "模式是策略配置，请求是策略触发的具体确认弹窗" }
+    ],
+    "agent-模式agent-mode": [
+      { "id": "权限模式permission-mode", "note": "权限模式只管放行审批，不含角色提示词" },
+      { "id": "skill技能", "note": "Agent 模式切全局姿态（如规划/执行），Skill 教具体任务" }
+    ],
+    "沙箱sandbox": [
+      { "id": "权限模式permission-mode", "note": "权限模式限制允许调用什么，沙箱限制调用后的破坏半径" },
+      { "id": "环境environment", "note": "沙箱是被隔离受限后的安全版运行环境" }
+    ],
+    "谄媚sycophancy": [
+      { "id": "幻觉hallucination", "note": "谄媚是刻意顺从迎合；幻觉是无意中编造或偏离事实" },
+      { "id": "追问式访谈grilling", "note": "追问式访谈专门用反问对抗顺从，逼出真实约束" }
+    ],
+    "幻觉hallucination": [
+      { "id": "谄媚sycophancy", "note": "幻觉是瞎编或漏读事实；谄媚是顺着用户说好听的" },
+      { "id": "非确定性non-determinism", "note": "非确定性指合法答案有变化；幻觉指结果本身错误" }
+    ],
+    "参数知识parametric-knowledge": [
+      { "id": "上下文知识contextual-knowledge", "note": "参数知识先天固化且会过期，上下文知识实时可查证" },
+      { "id": "记忆系统memory-system", "note": "记忆系统存在外部文件中，属于上下文知识而非参数" }
+    ],
+    "知识截止日期knowledge-cutoff": [
+      { "id": "参数知识parametric-knowledge", "note": "截止日期是时间边界，参数知识是边界内的全部记忆" },
+      { "id": "幻觉hallucination", "note": "超过截止日期的新库极易诱发事实性幻觉" }
+    ],
+    "上下文知识contextual-knowledge": [
+      { "id": "参数知识parametric-knowledge", "note": "前者从当前窗口现读，后者来自训练权重回忆" },
+      { "id": "一手信源primary-source", "note": "上下文知识既可来自一手代码，也可来自二手摘要" }
+    ],
+    "注意力关联attention-relationship": [
+      { "id": "注意力预算attention-budget", "note": "关联对是争夺注意力的对象，预算是可供分配的总量" },
+      { "id": "注意力退化attention-degradation", "note": "关联对按 N² 暴涨最终引发注意力退化" }
+    ],
+    "注意力预算attention-budget": [
+      { "id": "上下文窗口context-window", "note": "窗口装得下不代表注意力够用，质量在满窗前就会下降" },
+      { "id": "注意力退化attention-degradation", "note": "预算是底层资源约束，退化是预算被摊薄后的症状" }
+    ],
+    "注意力退化attention-degradation": [
+      { "id": "幻觉hallucination", "note": "注意力退化是诱因，忠实度幻觉是其典型表现" },
+      { "id": "聪明区smart-zone", "note": "聪明区描述尚在退化前的最佳工作区间" }
+    ],
+    "聪明区smart-zone": [
+      { "id": "上下文窗口context-window", "note": "聪明区远小于标称窗口上限（常在满窗前就滑出）" },
+      { "id": "注意力退化attention-degradation", "note": "跨过聪明区边界滑入愚钝区即是退化的体感表现" }
+    ],
+    "清空会话clearing": [
+      { "id": "上下文压缩compaction", "note": "清空彻底归零无残留，压缩保留有损摘要继续跑" },
+      { "id": "交接handoff", "note": "交接强调把关键认知带过去，清空只负责重置窗口" }
+    ],
+    "交接handoff": [
+      { "id": "交接产物handoff-artifact", "note": "交接是跨会话动作，交接产物是承载信息的文档" },
+      { "id": "subagent子智能体", "note": "交接是单向接力，Subagent 会向父会话返回结果" }
+    ],
+    "一手信源primary-source": [
+      { "id": "二手信源secondary-source", "note": "一手完整权威但费 Token，二手便宜精炼但有损" },
+      { "id": "人工审查human-review", "note": "审查代码必须看一手 Diff，不能只看二手总结" }
+    ],
+    "二手信源secondary-source": [
+      { "id": "一手信源primary-source", "note": "一手是原始事实本身，二手是转述、摘要与文档" },
+      { "id": "交接产物handoff-artifact", "note": "交接产物多属二手信源，最好附上指向一手文件的指针" }
+    ],
+    "交接产物handoff-artifact": [
+      { "id": "spec规格说明书", "note": "Spec 是面向多会话的大型交接产物" },
+      { "id": "ticket任务单", "note": "Ticket 是面向单个会话的轻量交接产物" }
+    ],
+    "spec规格说明书": [
+      { "id": "ticket任务单", "note": "Spec 定义跨会话的整体目标，Ticket 切分单次会话任务" },
+      { "id": "设计构想design-concept", "note": "设计构想是双方脑中的共识，Spec 是落盘后的正式文档" }
+    ],
+    "ticket任务单": [
+      { "id": "spec规格说明书", "note": "Ticket 粒度为单会话可执行，Spec 覆盖多会话全貌" },
+      { "id": "交接产物handoff-artifact", "note": "Ticket 是交接产物中最具执行粒度的常见形式" }
+    ],
+    "上下文压缩compaction": [
+      { "id": "清空会话clearing", "note": "清空彻底丢弃历史、从零开始；压缩保留摘要继续" },
+      { "id": "自动压缩autocompact", "note": "自动压缩只是由驾驭框架自动触发的压缩时机" }
+    ],
+    "自动压缩autocompact": [
+      { "id": "上下文压缩compaction", "note": "压缩是机制本身，自动压缩指满窗时被动触发" },
+      { "id": "交接handoff", "note": "与其被动等自动压缩，不如在合适节点主动做清晰交接" }
+    ],
+    "记忆系统memory-system": [
+      { "id": "agentsmd", "note": "AGENTS.md 由人维护项目规范，记忆系统多由 Agent 自动沉淀" },
+      { "id": "前缀缓存prefix-cache", "note": "前缀缓存只加速单会话请求，不跨会话保存知识" }
+    ],
+    "agentsmd": [
+      { "id": "system-prompt系统提示词", "note": "前者是项目仓库自带的简报，后者是工具内置的底层指令" },
+      { "id": "skill技能", "note": "AGENTS.md 每次必载，Skill 按需加载以省上下文" }
+    ],
+    "渐进式披露progressive-disclosure": [
+      { "id": "上下文指针context-pointer", "note": "渐进式披露是设计原则，上下文指针是具体实现手段" },
+      { "id": "上下文压缩compaction", "note": "渐进式披露事前省上下文，压缩是事后亡羊补牢" }
+    ],
+    "上下文指针context-pointer": [
+      { "id": "渐进式披露progressive-disclosure", "note": "指针是轻量索引线索，渐进式披露是整套按需加载策略" },
+      { "id": "skill技能", "note": "Skill 依赖上下文指针决定何时把完整指令拉入窗口" }
+    ],
+    "skill技能": [
+      { "id": "mcp模型上下文协议", "note": "Skill 教 Agent 怎么做事（指令），MCP 给 Agent 新工具（接口）" },
+      { "id": "agentsmd", "note": "Skill 按需按场景加载，AGENTS.md 每次会话默认常驻" }
+    ],
+    "subagent子智能体": [
+      { "id": "交接handoff", "note": "Subagent 完成后把结果交回父会话；交接一去不返" },
+      { "id": "agent智能体", "note": "Subagent 是由主 Agent 派生的隔离执行单元" }
+    ],
+    "home-repo主控仓库": [
+      { "id": "agentsmd", "note": "Home Repo 统筹多仓库共享资产，AGENTS.md 常驻单个项目" },
+      { "id": "软件工厂software-factory", "note": "Home Repo 是个人/团队中枢仓库，软件工厂是自动化调度体系" }
+    ],
+    "人在回路human-in-the-loop": [
+      { "id": "无人值守afk", "note": "人在回路全程实时协作；AFK 放手让 Agent 后台自主跑" },
+      { "id": "人工审查human-review", "note": "人在回路是协作方式，人工审查是具体的代码把关动作" }
+    ],
+    "无人值守afk": [
+      { "id": "人在回路human-in-the-loop", "note": "AFK 把人类输入前移到 Spec、后置到 PR 审查" },
+      { "id": "软件工厂software-factory", "note": "AFK 仍由人手动启动会话，软件工厂由外部触发器自动启动" }
+    ],
+    "自动化检查automated-check": [
+      { "id": "自动化审查automated-review", "note": "自动化检查是确定性通过/失败；自动化审查由 Agent 做主观判断" },
+      { "id": "人工审查human-review", "note": "检查抓语法与回归，人工把关业务与长期架构" }
+    ],
+    "自动化审查automated-review": [
+      { "id": "自动化检查automated-check", "note": "自动化审查是非确定性的语义评判，非脚本断言" },
+      { "id": "人工审查human-review", "note": "自动化审查可提前过滤问题，但无法替代最终责任归属" }
+    ],
+    "人工审查human-review": [
+      { "id": "自动化审查automated-review", "note": "前者由人类直读 Diff 拍板，后者由另一 Agent 辅助审阅" },
+      { "id": "vibe-coding氛围编程", "note": "Vibe coding 的定义恰恰是刻意跳过人工审查" }
+    ],
+    "vibe-coding氛围编程": [
+      { "id": "原型构建prototyping", "note": "原型构建是有意识地做抛弃型实物验证，不等同盲目合并生产" },
+      { "id": "黑灯工厂dark-factory", "note": "两者都不人工审 Diff，但黑灯工厂靠严密自动化体系兜底" }
+    ],
+    "设计构想design-concept": [
+      { "id": "spec规格说明书", "note": "设计构想是人机脑中的共享理解，Spec 是它的文字载体" },
+      { "id": "原型构建prototyping", "note": "原型是用来具象化并验证设计构想的粗糙实物" }
+    ],
+    "追问式访谈grilling": [
+      { "id": "原型构建prototyping", "note": "追问式访谈用对话厘清决策；原型构建用实物解决对话说不清的问题" },
+      { "id": "谄媚sycophancy", "note": "追问式访谈刻意要求 Agent 追问边界，避免一味附和" }
+    ],
+    "原型构建prototyping": [
+      { "id": "vibe-coding氛围编程", "note": "原型构建的目的是看清方向再重写或定稿，而非直接交付" },
+      { "id": "追问式访谈grilling", "note": "前者用可运行实物对齐认知，后者用苏格拉底式提问对齐" }
+    ],
+    "开发者体验dx": [
+      { "id": "agent体验ax", "note": "DX 服务有状态的人类开发者，AX 服务无状态的 Agent" },
+      { "id": "自动化检查automated-check", "note": "快速测试同时提升 DX 与 AX，是两者的最大交集" }
+    ],
+    "agent体验ax": [
+      { "id": "开发者体验dx", "note": "人类能靠口头知识弥补差 DX，Agent 只能依赖文本反馈与清晰结构" },
+      { "id": "环境environment", "note": "AX 本质上是衡量环境对 Agent 友好程度的标尺" }
+    ],
+    "软件工厂software-factory": [
+      { "id": "无人值守afk", "note": "AFK 由人发起单次会话，软件工厂由事件触发器成批驱动" },
+      { "id": "黑灯工厂dark-factory", "note": "软件工厂仍保留人工审查，黑灯工厂完全取消人工审查" }
+    ],
+    "黑灯工厂dark-factory": [
+      { "id": "软件工厂software-factory", "note": "黑灯工厂是软件工厂去掉人工审查后的极端形态" },
+      { "id": "vibe-coding氛围编程", "note": "黑灯工厂依赖工程级自动化检验，而非个人凭感觉接受代码" }
+    ]
+  }
+}
